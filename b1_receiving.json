@@ -1,0 +1,168 @@
+{
+ "MR": {
+  "req": "MR",
+  "item": "QRM1001",
+  "loc": {
+   "label": "sem 3",
+   "term": "S",
+   "year": 2,
+   "campus": "국제",
+   "keys": [
+    "QRM1001",
+    "QRM3003",
+    "FREE",
+    "FREE",
+    "FREE",
+    "FREE"
+   ]
+  },
+  "provenance": {
+   "QRM3003": "NO SECTION DATA -> treated as a free slot",
+   "QRM1001": "QRM1001: 2026-1 observed (2 section(s))"
+  },
+  "with_median": 90.18706993761117,
+  "with_min": 88.71188129242546,
+  "with_max": 91.6622585827969,
+  "without_median": 114.3702585827969,
+  "without_min": 114.3702585827969,
+  "without_max": 114.3702585827969,
+  "n_with": 2,
+  "n_without": 1,
+  "truncated": false,
+  "K_median": 24.183188645185723,
+  "K_lo": 22.708,
+  "K_hi": 25.658377290371433
+ },
+ "WCiv": {
+  "req": "WCiv",
+  "item": "WCiv",
+  "loc": {
+   "label": "sem 7",
+   "term": "S",
+   "year": 4,
+   "campus": "국제",
+   "keys": [
+    "WCiv",
+    "QRM3003"
+   ]
+  },
+  "provenance": {
+   "QRM3003": "NO SECTION DATA -> treated as a free slot",
+   "WCiv": "UIC1561: 2026-1 observed (2 section(s))"
+  },
+  "with_median": 59.64020568009525,
+  "with_min": 59.64020568009525,
+  "with_max": 59.64020568009525,
+  "without_median": 150.73750601653208,
+  "without_min": 150.73750601653208,
+  "without_max": 150.73750601653208,
+  "n_with": 2,
+  "n_without": 1,
+  "truncated": false,
+  "K_median": 91.09730033643683,
+  "K_lo": 91.09730033643683,
+  "K_hi": 91.09730033643683
+ },
+ "LHP": {
+  "req": "LHP",
+  "item": "LHP",
+  "loc": {
+   "label": "sem 4",
+   "term": "F",
+   "year": 2,
+   "campus": "신촌",
+   "keys": [
+    "LHP",
+    "ECO2102",
+    "DM",
+    "DM",
+    "FREE",
+    "FREE"
+   ]
+  },
+  "provenance": {
+   "ECO2102": "ECO2102: Fall 2026 catalogue (5 section(s))",
+   "LHP": "UIC1251: Fall 2026 catalogue (1 section(s))"
+  },
+  "with_median": 15.082999999999998,
+  "with_min": -8.5,
+  "with_max": 23.708,
+  "without_median": 49.76520568009525,
+  "without_min": 30.11143084552667,
+  "without_max": 52.01520568009525,
+  "n_with": 5,
+  "n_without": 5,
+  "truncated": true,
+  "K_median": 34.68220568009525,
+  "K_lo": 6.403430845526671,
+  "K_hi": 60.51520568009525
+ },
+ "SciRD": {
+  "req": "SciRD",
+  "item": "SciRD",
+  "loc": {
+   "label": "sem 4",
+   "term": "F",
+   "year": 2,
+   "campus": "신촌",
+   "keys": [
+    "SciRD",
+    "ECO2102",
+    "DM",
+    "DM",
+    "FREE",
+    "FREE"
+   ]
+  },
+  "provenance": {
+   "ECO2102": "ECO2102: Fall 2026 catalogue (5 section(s))",
+   "SciRD": "UIC2151: 2025-2 observed (1 section(s))"
+  },
+  "with_median": 34.14020568009525,
+  "with_min": -16.25,
+  "with_max": 36.39020568009525,
+  "without_median": 49.76520568009525,
+  "without_min": 30.11143084552667,
+  "without_max": 52.01520568009525,
+  "n_with": 5,
+  "n_without": 5,
+  "truncated": true,
+  "K_median": 15.625,
+  "K_lo": -6.27877483456858,
+  "K_hi": 68.26520568009525
+ },
+ "Lang": {
+  "req": "Lang",
+  "item": "Lang",
+  "loc": {
+   "label": "sem 4",
+   "term": "F",
+   "year": 2,
+   "campus": "신촌",
+   "keys": [
+    "Lang",
+    "ECO2102",
+    "DM",
+    "DM",
+    "FREE",
+    "FREE"
+   ]
+  },
+  "provenance": {
+   "ECO2102": "ECO2102: Fall 2026 catalogue (5 section(s))",
+   "Lang": "NO SECTION DATA -> treated as a free slot"
+  },
+  "with_median": 49.76520568009525,
+  "with_min": 30.11143084552667,
+  "with_max": 52.01520568009525,
+  "without_median": 49.76520568009525,
+  "without_min": 30.11143084552667,
+  "without_max": 52.01520568009525,
+  "n_with": 5,
+  "n_without": 5,
+  "truncated": true,
+  "K_median": 0.0,
+  "K_lo": -21.90377483456858,
+  "K_hi": 21.90377483456858
+ }
+}

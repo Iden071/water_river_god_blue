@@ -1,0 +1,37 @@
+# Secrets / authentication
+.env
+.env.*
+!.env.example
+jsessionid.txt
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Logs
+*.log
+
+# Temporary/generated working directories
+_*_tmp/
+_fetch_state/
+_mlg_state/
+_rank4_parts/
+_v3_parts*/
+
+# Backup/archive files
+*.tgz
+*.bak
+
+# OS/editor clutter
+.DS_Store
+Thumbs.db
+
+# Reference documents — keep locally for now, don't upload to GitHub
+*.pdf
+*.xlsx
+
+# Local archives / audit material
+archive/
+audit/
+transcript/

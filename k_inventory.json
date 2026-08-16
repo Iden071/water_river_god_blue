@@ -1,0 +1,256 @@
+{
+ "MR/QRM1001": {
+  "code": "QRM1001",
+  "term": "S",
+  "campus": "국제",
+  "src": "term-matched history",
+  "n_obs_matched": 2,
+  "n_obs_any": 4,
+  "n_current": 1,
+  "n_masks": 2,
+  "n_daysets": 2,
+  "p_novel": 1.0,
+  "masks": [
+   "목4,5,6",
+   "금1,2,3"
+  ],
+  "freq": [
+   1,
+   1
+  ]
+ },
+ "WCiv/UIC1561": {
+  "code": "UIC1561",
+  "term": "S",
+  "campus": "국제",
+  "src": "term-matched history",
+  "n_obs_matched": 2,
+  "n_obs_any": 4,
+  "n_current": 1,
+  "n_masks": 1,
+  "n_daysets": 1,
+  "p_novel": 0.0,
+  "masks": [
+   "월7,8/수7"
+  ],
+  "freq": [
+   2
+  ]
+ },
+ "LHP/UIC1551": {
+  "code": "UIC1551",
+  "term": "F",
+  "campus": "신촌",
+  "src": "NO DATA",
+  "n_obs_matched": 0,
+  "n_obs_any": 0,
+  "n_current": 0,
+  "n_masks": 0,
+  "n_daysets": 0,
+  "p_novel": 1.0,
+  "masks": [],
+  "freq": []
+ },
+ "LHP/UIC1251": {
+  "code": "UIC1251",
+  "term": "F",
+  "campus": "신촌",
+  "src": "CURRENT catalogue",
+  "n_obs_matched": 0,
+  "n_obs_any": 0,
+  "n_current": 1,
+  "n_masks": 0,
+  "n_daysets": 0,
+  "p_novel": 1.0,
+  "masks": [],
+  "freq": []
+ },
+ "LHP/UIC1501": {
+  "code": "UIC1501",
+  "term": "F",
+  "campus": "신촌",
+  "src": "CROSS-SEASON history stand-in",
+  "n_obs_matched": 0,
+  "n_obs_any": 1,
+  "n_current": 0,
+  "n_masks": 1,
+  "n_daysets": 1,
+  "p_novel": 1.0,
+  "masks": [
+   "월3,4/수4"
+  ],
+  "freq": [
+   1
+  ]
+ },
+ "SciRD/UIC2151": {
+  "code": "UIC2151",
+  "term": "F",
+  "campus": "신촌",
+  "src": "term-matched history",
+  "n_obs_matched": 1,
+  "n_obs_any": 1,
+  "n_current": 1,
+  "n_masks": 1,
+  "n_daysets": 1,
+  "p_novel": 1.0,
+  "masks": [
+   "화2,3/목1"
+  ],
+  "freq": [
+   1
+  ]
+ },
+ "Lang·easy/UIC1805": {
+  "code": "UIC1805",
+  "term": "S",
+  "campus": "국제",
+  "src": "term-matched history",
+  "n_obs_matched": 2,
+  "n_obs_any": 5,
+  "n_current": 2,
+  "n_masks": 2,
+  "n_daysets": 1,
+  "p_novel": 1.0,
+  "masks": [
+   "화4/목5,6",
+   "화1/목2,3"
+  ],
+  "freq": [
+   1,
+   1
+  ]
+ },
+ "Lang·easy/UIC1806": {
+  "code": "UIC1806",
+  "term": "S",
+  "campus": "국제",
+  "src": "term-matched history",
+  "n_obs_matched": 4,
+  "n_obs_any": 8,
+  "n_current": 2,
+  "n_masks": 2,
+  "n_daysets": 1,
+  "p_novel": 0.0,
+  "masks": [
+   "화1/목2,3",
+   "화4/목5,6"
+  ],
+  "freq": [
+   2,
+   2
+  ]
+ },
+ "Lang·hard/YCF1301": {
+  "code": "YCF1301",
+  "term": "F",
+  "campus": "신촌",
+  "src": "CURRENT catalogue",
+  "n_obs_matched": 0,
+  "n_obs_any": 0,
+  "n_current": 4,
+  "n_masks": 0,
+  "n_daysets": 0,
+  "p_novel": 1.0,
+  "masks": [],
+  "freq": []
+ },
+ "Lang·hard/YCF1351": {
+  "code": "YCF1351",
+  "term": "F",
+  "campus": "신촌",
+  "src": "CURRENT catalogue",
+  "n_obs_matched": 0,
+  "n_obs_any": 0,
+  "n_current": 2,
+  "n_masks": 0,
+  "n_daysets": 0,
+  "p_novel": 1.0,
+  "masks": [],
+  "freq": []
+ },
+ "Lang·hard/YCF1451": {
+  "code": "YCF1451",
+  "term": "F",
+  "campus": "신촌",
+  "src": "CURRENT catalogue",
+  "n_obs_matched": 0,
+  "n_obs_any": 0,
+  "n_current": 2,
+  "n_masks": 0,
+  "n_daysets": 0,
+  "p_novel": 1.0,
+  "masks": [],
+  "freq": []
+ },
+ "Lang·hard/YCF1501": {
+  "code": "YCF1501",
+  "term": "F",
+  "campus": "신촌",
+  "src": "CURRENT catalogue",
+  "n_obs_matched": 0,
+  "n_obs_any": 0,
+  "n_current": 2,
+  "n_masks": 0,
+  "n_daysets": 0,
+  "p_novel": 1.0,
+  "masks": [],
+  "freq": []
+ },
+ "Lang·hard/YCF1551": {
+  "code": "YCF1551",
+  "term": "F",
+  "campus": "신촌",
+  "src": "CURRENT catalogue",
+  "n_obs_matched": 0,
+  "n_obs_any": 0,
+  "n_current": 3,
+  "n_masks": 0,
+  "n_daysets": 0,
+  "p_novel": 1.0,
+  "masks": [],
+  "freq": []
+ },
+ "Lang·hard/YCF1601": {
+  "code": "YCF1601",
+  "term": "F",
+  "campus": "신촌",
+  "src": "CURRENT catalogue",
+  "n_obs_matched": 0,
+  "n_obs_any": 0,
+  "n_current": 1,
+  "n_masks": 0,
+  "n_daysets": 0,
+  "p_novel": 1.0,
+  "masks": [],
+  "freq": []
+ },
+ "Lang·hard/YCF1603": {
+  "code": "YCF1603",
+  "term": "F",
+  "campus": "신촌",
+  "src": "CURRENT catalogue",
+  "n_obs_matched": 0,
+  "n_obs_any": 0,
+  "n_current": 2,
+  "n_masks": 0,
+  "n_daysets": 0,
+  "p_novel": 1.0,
+  "masks": [],
+  "freq": []
+ },
+ "Lang·hard/YCF1607": {
+  "code": "YCF1607",
+  "term": "F",
+  "campus": "신촌",
+  "src": "CURRENT catalogue",
+  "n_obs_matched": 0,
+  "n_obs_any": 0,
+  "n_current": 1,
+  "n_masks": 0,
+  "n_daysets": 0,
+  "p_novel": 1.0,
+  "masks": [],
+  "freq": []
+ }
+}

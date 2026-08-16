@@ -1,0 +1,170 @@
+{
+ "ASP2033": {
+  "n_terms": 1,
+  "n_oversubscribed": 1,
+  "ratio_max": 1.2857142857142858,
+  "cost_lo": 8.6,
+  "cost_hi": 27,
+  "ever_safe": false
+ },
+ "ECO1101": {
+  "n_terms": 7,
+  "n_oversubscribed": 0,
+  "ratio_max": 0.4444444444444444,
+  "cost_lo": 1,
+  "cost_hi": 12,
+  "ever_safe": true
+ },
+ "ECO1103": {
+  "n_terms": 7,
+  "n_oversubscribed": 4,
+  "ratio_max": 1.6888888888888889,
+  "cost_lo": 11.8,
+  "cost_hi": 12,
+  "ever_safe": false
+ },
+ "ECO1104": {
+  "n_terms": 5,
+  "n_oversubscribed": 1,
+  "ratio_max": 1.0277777777777777,
+  "cost_lo": 11.6,
+  "cost_hi": 12,
+  "ever_safe": false
+ },
+ "QRM1001": {
+  "n_terms": 4,
+  "n_oversubscribed": 0,
+  "ratio_max": 0.9827586206896551,
+  "cost_lo": 1,
+  "cost_hi": 9.5,
+  "ever_safe": true
+ },
+ "QRM2001": {
+  "n_terms": 4,
+  "n_oversubscribed": 0,
+  "ratio_max": 0.5333333333333333,
+  "cost_lo": 1,
+  "cost_hi": 10.2,
+  "ever_safe": true
+ },
+ "UIC1251": {
+  "n_terms": 2,
+  "n_oversubscribed": 2,
+  "ratio_max": 2.5,
+  "cost_lo": 14.2,
+  "cost_hi": 22,
+  "ever_safe": false
+ },
+ "UIC1351": {
+  "n_terms": 8,
+  "n_oversubscribed": 7,
+  "ratio_max": 5.333333333333333,
+  "cost_lo": 31.1,
+  "cost_hi": 36,
+  "ever_safe": false
+ },
+ "UIC1401": {
+  "n_terms": 4,
+  "n_oversubscribed": 4,
+  "ratio_max": 3.3333333333333335,
+  "cost_lo": 29.7,
+  "cost_hi": 36,
+  "ever_safe": false
+ },
+ "UIC1501": {
+  "n_terms": 17,
+  "n_oversubscribed": 5,
+  "ratio_max": 1.6842105263157894,
+  "cost_lo": 19.8,
+  "cost_hi": 36,
+  "ever_safe": false
+ },
+ "UIC1551": {
+  "n_terms": 10,
+  "n_oversubscribed": 1,
+  "ratio_max": 1.3333333333333333,
+  "cost_lo": 14.5,
+  "cost_hi": 31,
+  "ever_safe": false
+ },
+ "UIC1561": {
+  "n_terms": 4,
+  "n_oversubscribed": 3,
+  "ratio_max": 1.3333333333333333,
+  "cost_lo": 8.4,
+  "cost_hi": 36,
+  "ever_safe": false
+ },
+ "UIC1751": {
+  "n_terms": 2,
+  "n_oversubscribed": 0,
+  "ratio_max": 1.0,
+  "cost_lo": 1,
+  "cost_hi": 7,
+  "ever_safe": true
+ },
+ "UIC1805": {
+  "n_terms": 7,
+  "n_oversubscribed": 5,
+  "ratio_max": 3.0,
+  "cost_lo": 17.7,
+  "cost_hi": 36,
+  "ever_safe": false
+ },
+ "UIC1806": {
+  "n_terms": 8,
+  "n_oversubscribed": 7,
+  "ratio_max": 5.5,
+  "cost_lo": 34,
+  "cost_hi": 36,
+  "ever_safe": false
+ },
+ "UIC2151": {
+  "n_terms": 32,
+  "n_oversubscribed": 14,
+  "ratio_max": 5.0,
+  "cost_lo": 31.6,
+  "cost_hi": 36,
+  "ever_safe": false
+ },
+ "ASP2022": {
+  "n_terms": 2,
+  "n_oversubscribed": 0,
+  "ratio_max": 0.6666666666666666,
+  "cost_lo": 1,
+  "cost_hi": 7.4,
+  "ever_safe": true
+ },
+ "QRM2002": {
+  "n_terms": 2,
+  "n_oversubscribed": 0,
+  "ratio_max": 0.8,
+  "cost_lo": 1,
+  "cost_hi": 6.9,
+  "ever_safe": true
+ },
+ "QRM3001": {
+  "n_terms": 2,
+  "n_oversubscribed": 1,
+  "ratio_max": 1.35,
+  "cost_lo": 12.8,
+  "cost_hi": 36,
+  "ever_safe": false
+ },
+ "QRM4807": {
+  "n_terms": 1,
+  "n_oversubscribed": 1,
+  "ratio_max": 1.025,
+  "cost_lo": 7.2,
+  "cost_hi": 36,
+  "ever_safe": false
+ },
+ "YCA1006": {
+  "n_terms": 13,
+  "n_oversubscribed": 0,
+  "ratio_max": 0.06666666666666667,
+  "cost_lo": 1,
+  "cost_hi": 6.4,
+  "ever_safe": true
+ }
+}
