@@ -21,8 +21,8 @@ import difficulty as DIFF
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 P = lambda f: os.path.join(HERE, f)
-YEARS = ('2024', '2025', '2026')
-GEOS = ('목4,5,6', '금1,2,3')
+YEARS = ('2026',)
+GEOS = ('partition over sems 3-8',)
 B = ('-', 'MR', 'WCiv', 'LHP', 'SciRD', 'Lang')
 LABEL = {'-': 'postpones nothing', 'MR': 'postpones QRM입문', 'WCiv': 'postpones West.Civ',
          'LHP': 'postpones Lit·Hist·Phil', 'SciRD': 'postpones RDQM', 'Lang': 'postpones language'}
@@ -54,19 +54,42 @@ def unit_cost(nm, y):
     return round(min(vals) + yg, 3)
 
 
-UC = {y: {it: unit_cost(it, y) for it in ('ECO1101', 'ME', 'FREE', 'DM')} for y in YEARS}
-
-# ⭐ R272/R276. This used to build K three different ways — 0 for '-', a PINNED geometry for
-# MR, and bare min() for everything else — which is the asymmetry Iden rejected. It now
-# delegates to the single uniform estimator in fallback.py, so the renderer and the
-# recommendation can no longer disagree about what K is.
+# ⭐ R294 — SCORED BY THE PARTITION, NOT BY K.
+# The old scoring was `score + Σunit_cost − K(deferred)`. K priced deferral as if the penalty
+# vanished; R285 showed that for a required course it is only RELOCATED. This now scores every
+# candidate the way partition_verdict does:
 #
-# Because geometry uncertainty now lives INSIDE K (expectation over which slot you obtain),
-# it is no longer a scenario axis. The grid collapses from 3 years x 2 QRM1001 slots to the
-# 3 catalogue years — the only remaining thing the model genuinely cannot know.
-import fallback as _FB
-GEOS = ('all geometries (expected)',)
-KB = {b: {y: {GEOS[0]: _FB.kdefer(b, y)} for y in YEARS} for b in B}
+#     total(card) = Fall week score  +  best Σ best_week over semesters 3–8 of ITS remainder
+#
+# There is no K and no unit_cost term — a Fall elective that discharges a ledger unit is
+# already priced by that unit being absent from the remainder.
+#
+# The DP is cached on the remainder, and distinct remainders are few (one per branch x the
+# ledger items the electives burn), so this is cheap despite running over every candidate.
+import partition_solve as _PS
+import partition_verdict as _PV
+_PD, _PVAL = _PS.table()
+_PS.SINCHON_BONUS = float(os.environ.get('SINCHON_BONUS', 30.0))
+# disk-cached: `solve()` rebuilds its subset table on every call, so a cold render was doing
+# that once per distinct remainder over 62k candidates and never finished. Distinct remainders
+# are few; solve each once, persist, and every later render is instant.
+_FUTP = P('_future_cache.json')
+_FUT = {}
+if os.path.exists(_FUTP) and os.path.getsize(_FUTP):
+    try:
+        _FUT = dict(json.load(open(_FUTP, encoding='utf-8')))   # keys are opaque strings now
+    except Exception:
+        _FUT = {}
+
+
+def future_value(branch, r):
+    rem = _PV.remainder(branch, r)
+    key = _PS.cache_key(rem, _PD)          # RED-TEAM F2: bonus + table are IN the key
+    if key not in _FUT:
+        _FUT[key] = _PS.solve(rem, _PVAL, _PD['base'])[0]
+        json.dump(_FUT, open(_FUTP, 'w', encoding='utf-8'), ensure_ascii=False)
+    return _FUT[key]
+
 
 # ---------------- collect candidates ----------------
 seen, cands = set(), []
@@ -122,11 +145,19 @@ if _distinct:
 
 
 def sc(r, y, g):
-    k = KB[r['defer']][y][g]
-    if k is None:
-        return None
-    return r['score'] + sum(UC[y].get(i, 0.0) for i in r['items']) - k
+    f = future_value(r['defer'], r)
+    return None if f < -1e17 else r['score'] + f
 
+
+# pre-warm the DP cache over the distinct remainders, so ranking is a lookup
+_rems = {}
+for _c in cands:
+    _rems.setdefault(tuple(sorted(_PV.remainder(_c['defer'], _c).items())), _c)
+print(f"  {len(_rems)} distinct remainders to solve")
+for _i, _c in enumerate(_rems.values(), 1):
+    future_value(_c['defer'], _c)
+    if _i % 10 == 0:
+        print(f"    solved {_i}/{len(_rems)}", flush=True)
 
 keep = set()
 for y in YEARS:
@@ -424,7 +455,9 @@ for i, r in enumerate(cards):
     _wv, presfree = week_value(pm, fm)
     cr = sum(byc[c].get('cr', 0) for c in r['requirements'] + r['electives'])
     nfree = sum(1 for x in r['items'] if x == 'FREE')
-    meta.append(dict(i=i, base=r['score'], d=r['defer'], items=r['items']))
+    meta.append(dict(i=i, base=r['score'], d=r['defer'], items=r['items'],
+                     fut=round(future_value(r['defer'], r), 3),
+                     total=round(sc(r, '2026', GEOS[0]), 3)))
     out.append(
         f'<article class="c" id="c{i}" data-defer="{r["defer"]}">'
         f'<header><span class="rk"></span><span class="sc"></span>'
@@ -440,12 +473,12 @@ for i, r in enumerate(cards):
 out += ['</div>',
         '<script>',
         f'const M={json.dumps(meta,ensure_ascii=False)};',
-        f'const UC={json.dumps(UC,ensure_ascii=False)};',
-        f'const KB={json.dumps(KB,ensure_ascii=False)};',
         """
-let Y='2026', G='all geometries (expected)', F='all';
-function score(m){const k=KB[m.d][Y][G]; if(k===null)return null;
-  let s=m.base; for(const it of m.items) s+=(UC[Y][it]||0); return s-k;}
+let F='all';
+// R294: the total is computed in Python by the partition DP and embedded per card. There is
+// no client-side rescoring any more — the old page recomputed `score + Σunit_cost − K`, and
+// K no longer exists.
+function score(m){return m.total;}
 function render(){
   const rows=M.map(m=>({m,s:score(m)})).filter(x=>x.s!==null).sort((a,b)=>b.s-a.s);
   const list=document.getElementById('list'); let shown=0;
@@ -455,19 +488,18 @@ function render(){
     el.classList.toggle('hid',!vis);
     el.querySelector('.rk').textContent='#'+(idx+1);
     el.querySelector('.sc').textContent=x.s.toFixed(2);
-    const k=KB[x.m.d][Y][G], sv=x.m.items.reduce((a,i)=>a+(UC[Y][i]||0),0);
-    el.querySelector('.brk').innerHTML='week <b>'+x.m.base.toFixed(1)+'</b> + saved <b>'+
-      sv.toFixed(1)+'</b> − postpone <b>'+k.toFixed(1)+'</b>';
+    el.querySelector('.brk').innerHTML='Fall week <b>'+x.m.base.toFixed(1)+
+      '</b> + rest of degree <b>'+x.m.fut.toFixed(1)+'</b>';
     if(vis){shown++; list.appendChild(el);}
   });
-  document.getElementById('n').textContent=shown+' shown · '+Y+' catalogue · QRM1001 '+G;
+  document.getElementById('n').textContent=shown+' shown · scored over all 8 semesters';
 }
 document.querySelectorAll('.bar button').forEach(b=>b.onclick=()=>{
   const g=b.dataset.y?'y':b.dataset.g?'g':'f';
   document.querySelectorAll('.bar button').forEach(o=>{
     if((o.dataset.y&&g==='y')||(o.dataset.g&&g==='g')||(o.dataset.f&&g==='f'))
       o.setAttribute('aria-pressed', o===b);});
-  if(g==='y')Y=b.dataset.y; else if(g==='g')G=b.dataset.g; else F=b.dataset.f;
+  if(g==='f')F=b.dataset.f;
   render();});
 render();
 """, '</script>']

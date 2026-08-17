@@ -72,6 +72,35 @@ SUMMER_SLOTS      = 2       # [D] 7 cr / 3 cr per course
 SUMMER_ELIGIBLE_DEFAULT = frozenset({'LHP', 'Lang', 'SciRD', 'FREE'})
 # [P] the plausible 교양 set. Majors and WCiv excluded — no evidence either way.
 
+# ---------------------------------------------------------------------------
+# 1c · CODES BY (CAMPUS, SEASON) — R288
+# ---------------------------------------------------------------------------
+# ⛔ `ITEMS[...]['codes']` records the codes Iden might take, NOT the codes offered at each
+# campus in each season. For Chapel that made the whole item look 국제-Fall-only, because
+# YCA1006 is the Fall 국제 code — and `partition.py` then priced every Spring Chapel as
+# IMPOSSIBLE. Chapel is of course offered every semester; it just changes code.
+# Sourced from past_terms.json, all six terms, names verified to contain 채플:
+CODES_BY_TERM = {
+    'Chapel': {
+        ('국제', 'S'): ['YCA1001', 'YCA1005'],                      # 채플(1) 채플(A)
+        ('국제', 'F'): ['YCA1002', 'YCA1006'],                      # 채플(2) 채플(B)
+        ('신촌', 'S'): ['YCA1003', 'YCA1007', 'YCA1009', 'YCA1011'],
+        ('신촌', 'F'): ['YCA1004', 'YCA1008', 'YCA1010', 'YCA1012'],
+    },
+}
+
+
+def codes_for(key, campus, season):
+    """Codes for a ledger item AT a campus/season. Falls back to the flat `codes` list."""
+    m = CODES_BY_TERM.get(key)
+    if m:
+        return m.get((campus, season), [])
+    for i in ITEMS:
+        if i['key'] == key:
+            return list(i.get('codes') or [])
+    return []
+
+
 CREDIT_CAP     = 18.0   # [M] R-cap: 졸업이수학점 126 → 1~18학년 cap of 18 every semester
 FRESHMAN_CAP   = 19.0   # [M] freshman year allows 19; only sems 1-2
 CHAPEL_PER_SEM = 1      # [M] one chapel pass per semester, max

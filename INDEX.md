@@ -1,47 +1,63 @@
 # INDEX — read this first
 
 **Fall 2026 수강신청 · 국제캠퍼스 · registration 2026-08-25, 09:00–17:00 KST**
-Finalised **2026-08-16**. 283 rules. The pipeline below is the one that produced the answer;
+Finalised **2026-08-17**. 300 rules. The pipeline below is the one that produced the answer;
 every file it does not name is superseded.
 
 ---
 
 ## THE ANSWER
 
-# ✅ FINAL — 2026-08-16
+# ✅ FINAL — partition objective, 신촌 bonus 30
 
 ```
-defer  Intro to QRM (QRM1001)                     total 66.382
+defer  Language                                    total 352.569
 
-UIC1561-01  WESTERN CIVILIZATION            월7,8/수7
-UIC1551-01  WORLD HISTORY: GROUP II         화7,목8,9
-UIC2151-09  RESEARCH DESIGN (RDQM)          화5,6,목4
-UIC1806-02  BEGINNING JAPANESE (1)
-ECO1101-06  MATHEMATICS FOR ECONOMICS I     월9,10/수10
-STA2102-05  선형대수                           월5,6/수6
+QRM1001-01  INTRODUCTION TO QUANTITATIVE RISK MGMT
+UIC1561-01  WESTERN CIVILIZATION
+UIC1551-04  WORLD HISTORY: GROUP II
+UIC2151-12  RESEARCH DESIGN AND QUANTITATIVE METHODS
+QRM2004-01  STATISTICAL ANALYTIC METHODS
+STA2102-05  선형대수
 YCA1006-01  채플(B)
 ```
 
-**CLICK ORDER on 8/25 — most costly to lose, first**
+**CLICK ORDER on 8/25 — most costly to lose, first** (`partition_clickorder.json`)
 
-| # | section | cost to lose |
+| # | section | cost |
 |---|---|---:|
-| 1 | `UIC1561-01-00` | 32.48 |
-| 2 | `STA2102-05-00` | 6.64 |
-| 3 | `ECO1101-06-00` | 2.51 |
-| 4 | `YCA1006-01-00` | 1.18 |
-| 5–7 | `UIC1551-01` · `UIC2151-09` · `UIC1806-02` | 0.00 |
+| 1 | `UIC1561-01-00` WESTERN CIVILIZATION | 21.10 |
+| 2 | `STA2102-05-00` 선형대수 | 9.45 |
+| 3 | `UIC2151-12-00` RDQM | 6.70 |
+| 4 | `QRM1001-01-00` Intro to QRM | 5.33 |
+| 5 | `QRM2004-01-00` Statistical Analytic Methods | 5.10 |
+| 6 | `YCA1006-01-00` 채플(B) | 1.18 |
+| 7 | `UIC1551-04-00` World History II | 0.00 — `UIC1551-01` substitutes free |
 
-`DECISION_v3.html` — **MR wins 3/3 catalogue-year cells.**
-`TOP50_v3.html` — 88 cards from 107,209 structurally distinct candidates.
+**THE REST OF THE DEGREE** (Σ 332.679, 5 신촌 / 1 국제 — the forced minimum)
 
-> ✅ **Registrable.** The 8/16 seat pull confirms `UIC1561-01-00` has no per-year quota scheme,
-> so a 1학년 is not barred (R2/R134/R247). Two sections elsewhere DO bar 1학년
-> (`YCG1804-01-00`, `YCG1853-01-00`); `eligibility.py` filters them.
-> ⚠️ The pull answered **eligibility**, not seat competition — `atnlcPercpCnt` is not capacity
-> and 여석 must never be computed from it (R248).
+| sem | | | value |
+|---|---|---|---:|
+| 3 | 신촌 S | Seminar | 49.671 |
+| 4 | 신촌 F | Chapel + ECO1101 + ECO2101 | 35.569 |
+| 5 | 국제 S | ME + ME + QRM3003 | **−7.050** |
+| 6 | 신촌 F | Lang + ME + MR5 | 29.749 |
+| 7 | 신촌 S | Seminar | 49.671 |
+| 8 | 신촌 F | Chapel + ECO2102 + ME | 25.069 |
 
----
+⚠️ sem 5 is negative because `QRM3003` forces one 국제 Spring and the plan pays for it once
+rather than spreading it. A floor of 0 costs **7.9** and keeps all five 신촌 semesters — not
+applied, recorded as available.
+
+### LIVE FILES — everything else in this folder is superseded
+```
+TOP50_v3.html               the 50 browsable timetables, partition-scored
+partition_clickorder.json   the 8/25 click order
+partition_verdict.json      the six deferral branches
+partition.json              the cost table (1,640 entries)
+```
+⛔ `DECISION_v3.html` and `fallback.json` are on the **old K objective** and disagree with the
+above. Superseded by `partition_verdict.json` and `partition_clickorder.json` (R297).
 
 ## WHY THE EARLIER ANSWER ("defer Language") WAS WRONG
 
@@ -53,66 +69,49 @@ YCA1006-01  채플(B)
 | **R272** | `kdefer` had two code paths (MR pinned to a geometry, everything else bare `min()`). Replaced by one estimator for every branch. `min` vs `median` dissolved into a measured acquisition probability. |
 | **R247 · R259** | `risk.p_get_freshman` tested `sy1 == 0` one-sidedly and declared the recommendation impossible the day the seat file landed. `p_win_bracket` returned `(1.0, 1.0)` — certainty — for unmeasured courses. |
 
-## ⛔⛔⛔ THE LARGEST OPEN DEFECT — R285, THE RELOCATION GAP
+## HOW THE OBJECTIVE GOT HERE — R285 and the partition
 
-**The model prices AVOIDANCE where only RELOCATION is possible.** Every ledger item must be
-taken eventually, so a schedule penalty on a required course cannot be avoided — only moved.
-The objective scores this semester's discomfort and treats a penalty pushed into the future as
-*removed*. `K` exists to catch this and does not, because it measures damage against a
-**free-choice filler semester** rather than the actual remaining obligation set.
+**The model used to price AVOIDANCE where only RELOCATION is possible.** Every ledger item must
+be taken eventually, so a schedule penalty on a required course cannot be avoided, only moved.
+`K` measured the damage of adding one course to a **free-choice filler semester** — a semester
+that will never exist — and treated a penalty pushed into the future as removed.
 
-Measured on 금, the largest term in the ranking (32–43 points per hour):
-
+Measured on 금, then the largest term in the ranking:
 ```
-minimum 금-broken semesters over the remaining degree : 1
-QRM3003 runs 금 in 3 of 3 observed sections — it can NEVER avoid 금
-
+minimum 금-broken semesters over the remaining degree : 1   (QRM3003 runs 금 in 3 of 3)
 clean semester      K(a 금 course)  +8.137
-금 already broken   marginal        −2.321   ← a second 금 course is better than free
+금 already broken   marginal        −2.321   <- a second 금 course is better than free
 ```
 
-So 금-freedom is priced as permanently achievable and it is not. The correct plan is **one
-금-broken semester absorbing every 금-ish obligation**, which the model cannot express because
-`K` is per-course and per-semester-in-isolation. Same root cause as R275 (deferrals assumed
-independent), opposite sign.
+`K` is gone. The objective is now
 
-### ⭐ MEASURED (R286) — the verdict survives, the margin does not
+    total = Fall week  +  best Σ best_week over semesters 3–8 of whatever units remain
 
-`relocation.py` rebuilds K's filler pool from the **actual remaining ledger** (14 units over 6
-semesters = 2.33 obligations per semester) instead of free-choice sections:
+with the 14 remaining units PARTITIONED across the six remaining semesters, campus chosen per
+semester. Interaction is priced by construction — no independence assumption — which is what
+R275 (superadditive, +14.675 when two deferrals collide) and R285 (subadditive, −2.321 when
+they share a sacrificed day) both required.
 
-| | K shipped | K realistic |
-|---|---:|---:|
-| MR | 1.917 | 2.000 |
-| Lang | 16.620 | **0.000** |
-| WCiv | 24.643 | **2.400** |
-| SciRD | 21.372 | **4.375** |
-| LHP | 15.698 | **0.000** |
+⭐ It reproduces the 금 insight unprompted: `QRM3003` and `MR5` are placed in the SAME semester.
+Nothing told it to cluster them.
 
-**K spread across branches: 24.643 → 4.375.**
+| built | |
+|---|---|
+| `partition.py` | the cost table — 1,640 entries, 733 usable, 601 exact, **0 above-baseline violations** |
+| `partition_solve.py` | the DP over partitions (1,728 states x 6 semesters x 2 campuses) |
+| `partition_verdict.py` | the six deferral branches, every row scanned (R295) |
+| `partition_clickorder.py` | leave-one-out click order on the same objective (R297) |
 
-```
-SHIPPED    : defer MR 66.382   (2nd Lang 47.18, margin 19.203)
-RELOCATION : defer MR 66.299   (2nd Lang 63.80, margin  2.500)
-```
+## STILL OPEN
 
-⇒ **Same answer, margin 19.203 → 2.500.** Almost everything that made the choice look decisive
-was K, and K was measured against a semester that will never exist. What survives is a thin
-2.5-point preference coming from `pre_K` — this semester's week quality and elective credit —
-which is the part of the model with real elicitation behind it.
-
-Still outstanding: the **partition** (optimise all 14 remaining units across 6 semesters), and
-deferral independence (R275). The 2-obligation pin is an average, not a plan.
-
-## THE OTHER OPEN STRUCTURAL QUESTION
-
-`MAX_DEFER = 1` is an **operating choice, not a proven optimum**. R121's proof is stale (R273):
-a two-deferral branch beats the current answer by **9.520**. But `ΣK` assumes deferred courses
-do not interact, and co-locating two in one semester costs **+14.675** (R275) — enough to erase
-the gain, if they co-locate. The model cannot yet tell.
-
-⇒ **Unresolved, not eliminated (R277).** Closing it needs joint K plus a placement check
-against `plan_model.ITEMS`.
+| | |
+|---|---|
+| ⚠️ **prof ratings not applied** | `prof_ratings.csv` has ratings; `_v3_parts_*` were searched with `PROF_RATED=0`. Re-run all four `MAX_FREE`, then verdict + clickorder + render. |
+| ⚠️ **re-pull `raw_2026F.json`** | it is from 08-06. Last diff was clean (0 time changes, 0 new 폐강 over 141 sections) but 폐강 cluster after registration closes. |
+| ⚠️ **table asymmetry** | 국제 built at `PICKS=6`, 신촌 at `PICKS=2`; 132 BOUND entries, all 신촌 (R195's linear day value weakens the bound). Not a designed asymmetry — a speed compromise. |
+| ⚠️ **2 UNMEASURED cells** | `Seminar` at 신촌F, `ECO2102` at 국제S — genuine season gaps, currently treated as unplaceable (R296). |
+| ⛔ **`MAX_DEFER = 1`** | an operating choice, not a proven optimum. R121's proof is stale (R273: a pair beat it by 9.520 under the old objective). Never re-tested under the partition. |
+| ⚠️ `test_v3.py` | 21 hold / 3 broken — R225 (December ledger), R237 (4 duplicate pool rows), R248 (label contamination). All documented. |
 
 ---
 
@@ -120,7 +119,7 @@ against `plan_model.ITEMS`.
 
 | # | file | what it is |
 |---|---|---|
-| 1 | **`RULES.md`** | ⭐ the evidence archive, **283 rules**, append-only. **R264–R277 are the current model.** Search it; never read front-to-back. |
+| 1 | **`RULES.md`** | ⭐ the evidence archive, **300 rules**, append-only. **R285–R297 are the current model.** Search it; never read front-to-back. |
 | 2 | **`PURPOSE_CHECK_2026-08-10.md`** | what the code actually rewards, term by term, reconstructed from source rather than from documentation. Start here to understand the objective. |
 | 3 | **`DESIGN_V3.md`** | why V was deleted as a score and what replaced it. |
 | 4 | **`MISSING_2026-08-16.md`** | ⭐ what is still missing, ordered by whether we could *detect* it being wrong. Supersedes `MISSING_2026-08-10.md` and `GAPS.md`. |

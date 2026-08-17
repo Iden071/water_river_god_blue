@@ -9185,3 +9185,494 @@ behind it.
 optimise the partition of all 14 remaining units across 6 semesters, and it still treats
 deferrals as independent (R275/R285). The 2-obligation pin is an average, not a plan — the
 real semester might hold 1 or 4. Next step is the partition, not another pool tweak.
+
+## R287. Partition model BUILT but BLOCKED — the ledger's `codes` lists are season-incomplete
+`partition.py` implements R285's correct formulation: partition the 14 remaining units across
+semesters 3–8 and score `Σ discomfort(semester)`, where
+
+    cost(S, campus, season) = best_week([], 6, pool) − best_week(S, 6−|S|, pool)
+
+so `cost(∅) = 0` and interaction is priced by construction — no independence assumption, which
+is what R275 (superadditive) and R285 (subadditive) both needed.
+
+**The cost table is complete and the solver is blocked on data, not compute.**
+```
+78 entries built (39 국제·Spring + 39 신촌·Fall, |S| ≤ 2)
+usable: 28      unusable: 50
+items causing the gaps: Chapel 20 · Seminar 13 · ECO2102 12 · ECO2101 12
+                        QRM1001 11 · QRM3003 11 · MR5 7 · ME 7
+```
+
+### Root cause, concretely
+`plan_model.ITEMS['Chapel']['codes'] == ['YCA1006']` — the **Fall** chapel code only. Chapel
+plainly runs every semester, but the ledger never lists the Spring codes, so
+`course_geometries('YCA1006', 국제, 'S')` is empty and every table entry containing Chapel is
+`None`. Observed in `past_terms.json`:
+```
+YCA1101  국제S 46 · 국제F 42 · 신촌S 3 · 신촌F 3
+YCA1102  국제S 58 · 국제F 47 · 신촌S 3 · 신촌F 3
+YCA1103  국제S 15 · 국제F 17 · 신촌S 3 · 신촌F 3
+YCA1007/1009/1011  신촌 Spring    YCA1008/1010/1012  신촌 Fall
+```
+The same shape affects the other seven items to varying degrees: the ledger records the codes
+Iden might take, not the codes offered at each campus in each season.
+
+⇒ **A 36%-covered table cannot be solved honestly.** With 14 units, 6 semesters and `|S| ≤ 2`
+the assignment also needs `|S| = 3` for at least two semesters (14/6 = 2.33), which the table
+does not yet carry.
+
+### What is needed, in order
+1. **Complete `plan_model.ITEMS` codes per (campus, season)** — Chapel first, it is 20 of the
+   50 gaps and unambiguous.
+2. Extend the table to `|S| = 3` (measured cost, not `cost(A+B) + cost(C)` — the whole point).
+3. Solve, with `QRM3003` forced to a 국제 Spring in year 3+ (R144) and ≥ 2 국제 semesters.
+
+⚠️ **Not a blocker for 8/25.** R286's realistic-pool correction already carries the decision
+relevant part: verdict unchanged, margin 19.203 → 2.500. The partition would refine that
+number, not reverse it — every branch's remaining units are the same set minus one.
+
+---
+
+# ⭐ R289. THE PARTITION MODEL IS BUILT AND SOLVED — R285's objective, no proxy
+
+`partition.py` (cost table) + `partition_solve.py` (DP). The objective is now
+
+    maximise  Σ_{s = 3..8}  best_week( obligations(s), 6−|S| free, pool(campus, season) )
+
+with the Fall 2026 choice fixing which units remain. **`K` is gone** — no per-course proxy, no
+free-choice filler semester, no independence assumption. Interaction is priced by construction,
+which is what R275 (superadditive) and R285 (subadditive) both required.
+
+### The table
+```
+468 entries = 117 multisets x 4 (campus, season)
+usable 197  ·  exact 179  ·  BOUND 18  ·  rest IMPOSSIBLE or UNMEASURED (R288)
+```
+
+### Three defects found while building it, each recorded because each was silent
+1. **Hardcoded exactness.** The entry wrote `True` for `ok` regardless of what `best_week`
+   returned. 국제 happened to be genuinely exact so it looked fine; 신촌 returns BOUND at every
+   cap below ~10M and would have been recorded as measured.
+2. **`geoms()` returned dict order.** With `PICKS` lowered for speed, "the n best geometries"
+   was actually "n arbitrary geometries". Now sorted by day-spread, so a truncated pick is the
+   best available — which is the semantics the rest of the model assumes (you choose your
+   section).
+3. **⭐ Weekend geometries are free, and pinning them is pathological.** 예배채플 runs `일1`.
+   It occupies no weekday cell, so it costs nothing — *and* pinning it constrains the search
+   not at all, degenerating `best_week` into the unconstrained 6-slot case that OOMs. Sorting
+   "least constraining first" therefore ran the **hardest** search first, which is why 신촌
+   produced zero entries for six consecutive chunks. Weekend-only geometries are now charged
+   zero and dropped from the pinned set. Both facts point the same way.
+
+### The solved plan
+```
+Σ week value = 244.409
+
+  sem 3  신촌 S   Chapel + ECO2101 + Seminar     48.069
+  sem 4  국제 F   ME + ME                        37.053
+  sem 5  국제 S   MR5 + QRM3003                  33.791
+  sem 6  국제 F   ME + ME                        37.053
+  sem 7  신촌 S   Chapel + ECO2102 + Seminar     48.069
+  sem 8  국제 F   ME + QRM1001                   40.374
+```
+
+⭐ **It independently reproduces R285's Friday insight.** `QRM3003` — the one item that can
+never avoid 금 — is placed in sem 5, and `MR5` (금-heavy, 3 of 6 observed sections) is placed
+**with it**, in the same semester. Nothing told the solver to cluster them; it fell out of
+pricing the interaction instead of assuming independence. That is the behaviour R285 predicted
+and the old `K` model could not express.
+
+Also note `ECO2101` and `ECO2102` land in different semesters (3 and 7) — they do not share a
+day the way `QRM3003`/`MR5` do, so clustering them buys nothing.
+
+# ⛔ R290. THE PARTITION VERDICT — FIRST RUN, SUPERSEDED BY R291 (Chapel bug). Kept for the reasoning.
+
+Stage 4 complete. Every branch scored as
+
+    total(branch) = max over its Fall timetables of
+                      [ Fall week score + best Σ best_week over semesters 3–8 of the remainder ]
+
+joint, not sequential: which electives Fall burns changes what remains, so each Fall row is
+scored against its OWN remainder.
+
+```
+branch   Fall week   Σ future      TOTAL
+-           10.315    243.159    253.474
+MR          37.069    219.534    256.603
+WCiv        26.244    234.977    261.221
+LHP         27.090    203.284    230.374
+SciRD       25.940    240.284    266.224   ⭐
+Lang        36.890    221.247    258.137
+```
+
+**⭐ Defer RDQM (SciRD), 266.224. Second WCiv 261.221, margin 5.003.**
+
+```
+Fall 2026:  QRM1001-01 · UIC1561-01 · UIC1551-01 · YCF1603-04 · YCH1605-01
+            STA2102-05 · YCA1006-02
+
+sem 3  신촌 S  Chapel + ECO2101 + Seminar      48.069
+sem 4  국제 F  ME + ME                         37.053
+sem 5  국제 S  MR5 + QRM3003                   33.791
+sem 6  국제 F  ME + ME                         37.053
+sem 7  신촌 S  Chapel + ECO2102 + Seminar      48.069
+sem 8  국제 F  ECO1101 + ME + SciRD            36.249
+```
+
+### Why it moved, and it is the whole point of R285
+The old model ranked by **Fall week score minus a per-course K**. On that basis `MR` led
+because its Fall week is the best available (37.069) and `K(MR)` was near zero. The partition
+asks a different question — *how good can the WHOLE remaining degree be* — and `SciRD` wins
+despite a **worse Fall week** (25.940, eleven points behind MR) because it leaves a remainder
+that packs far better: **240.284 vs 219.534, a 20.75-point future advantage.**
+
+That is precisely the relocation effect Iden identified. `K` priced deferral as if the penalty
+vanished; the partition prices where it actually lands. Deferring RDQM costs this Fall but buys
+more than it costs across six semesters — invisible to every earlier version of the model.
+
+`QRM3003` and `MR5` remain co-located in sem 5, reproducing the 금-clustering insight (R289).
+
+### Two misses on the way, both silent, both the same shape
+1. Table built from `units()` — the **MR branch's** remainder — so the other five branches had
+   no rows and reported NO FEASIBLE PARTITION. That reads like a constraint and was a gap.
+2. Adding only `DEFERRABLE` was still short: a Fall that does not burn an `ECO1101` elective
+   leaves ECO1101 owed, and `LHP`/`Lang`/`-` still failed. **Every ledger item with codes can
+   survive into the remainder, at full count.**
+
+⚠️ Table: 1,736 entries, 799 usable, 738 exact, 61 BOUND. `PICKS = 2` (best two geometries per
+pinned item, day-spread ordered). The BOUND entries are all 신촌, where R195's linear day value
+weakens the branch-and-bound bound.
+
+# ⭐⭐⭐ R291. CHAPEL IS NOT ONE OF THE SIX — 16 entries scored above their own baseline
+
+Iden, seeing the R290 verdict: *"Why would I even defer WCiv tho? What's the logic?"*
+
+There was none. Chasing it found a modelling error, caught by an invariant that should have
+been asserted from the start: **a semester carrying obligations cannot score higher than one
+carrying nothing.** Sixteen entries did.
+
+```
+국제|F baseline (6 free courses)   54.212
+국제|F | Chapel                    63.392   ⛔
+국제|F | Chapel+ME                 63.392   ⛔
+국제|S | Chapel+Chapel             68.392   ⛔ vs base 51.392
+```
+
+**Cause.** Chapel is 0.5 credits, capped at one per semester, excluded from the credit cap
+(`plan_model`), and held in its own pool by `rank3`. It is **not one of the six academic
+courses**. The table counted it as one, so `Chapel + 5 free` carried fewer academic hours than
+`6 free` and scored better. The solver then loved any plan that parked Chapel somewhere, and
+`WCiv` rose on the strength of a semester scoring **63.392** that should have been ~40.
+
+Fixed: `n_slots = 6 − (r − n_chapel) + free_items`. Chapel is still pinned — it occupies its
+hour — it just does not consume an academic slot. All 436 Chapel-containing entries recomputed.
+**Above-baseline violations: 16 → 0.**
+
+### The corrected verdict
+```
+branch   Fall week   Σ future      TOTAL
+-           10.315    218.159    228.474
+MR          37.069    198.713    235.782
+WCiv        26.244    207.209    233.453
+LHP         27.090    182.584    209.674
+SciRD       25.940    215.284    241.224   ⭐
+Lang        36.890    201.051    237.941
+```
+**Defer RDQM (SciRD), 241.224. Second Lang 237.941, margin 3.283.**
+
+`WCiv` falls from 2nd (261.221) to 4th (233.453) once its inflated Chapel semesters are priced
+correctly — which is exactly what Iden's question predicted. The headline answer is unchanged
+from R290 only by luck; the ordering beneath it was wrong.
+
+```
+Fall 2026:  QRM1001-01 · UIC1561-01 · UIC1551-01 · YCF1603-04
+            YCH1605-01 · STA2102-05 · YCA1006-02
+
+sem 3  신촌 S  Chapel + ECO2101 + Seminar   35.569
+sem 4  국제 F  ME + ME                      37.053
+sem 5  국제 S  MR5 + QRM3003                33.791
+sem 6  국제 F  ME + ME                      37.053
+sem 7  신촌 S  Chapel + ECO2102 + Seminar   35.569
+sem 8  국제 F  ECO1101 + ME + SciRD         36.249
+```
+
+⚠️ **The invariant is now the check.** `value(S) <= base(campus, season)` for every entry, with
+equality only when every item in S is weekend-only. Anything above it is a bug, and it found
+this one in one query. Table: 1,640 entries, 733 usable, 601 exact, **0 violations**.
+
+# ⭐⭐⭐ R292. THE 신촌 PREFERENCE — dropped, restored, and BRACKETED from Iden's own constraint
+
+Iden, on seeing the partition plan put him at 국제 for 6 of 8 semesters:
+> *"wait what am I looking at. that doesn't mean like i get more than 3 total 국제 semesters
+> right?"* … *"It's more. I think it is nearly uncomparable, it should just default to the
+> highest number, but not too high as it for example becomes more higher than deferring every
+> single requirement"*
+
+**There is no cap on 국제 semesters** — only a forced MINIMUM of 2 (Fall 2026, plus one 국제
+Spring for `QRM3003`, R144). The plan's 6 국제 was not illegal; it was the model failing to
+prefer 신촌 at all.
+
+### The omission
+R126 records Iden calling a 신촌 semester *"much much much more preferable"*.
+`continuation.SINCHON_SEMESTER_VALUE = 96.0` carried it, but it was **inert** there —
+PURPOSE_CHECK §C: +480 identically to all 7,200 candidates, because campus count never varied
+between candidates. **In the partition it varies, so it becomes live — and I built the solver
+without it.** A preference that survived four sessions as prose died on being ported.
+
+### Bracketing it from Iden's two conditions, and one bad first attempt
+His spec is an INTERVAL, not a number. First operationalisation gave an **empty** one:
+```
+lower  must outrank the weekly-schedule range   > 95.3
+upper  must not outrank the deferral decision   < 31.5
+```
+The lower bound was wrong: 95.3 is the range down to the *theoretically worst* semester
+(−45.6), which no plan would ever choose. The schedule difference that actually exists between
+the campuses is the gap between their best achievable weeks:
+```
+국제|F 54.212  vs  신촌|F 52.404   ->  1.808
+국제|S 51.392  vs  신촌|S 49.671   ->  1.721
+```
+⇒ **legal interval ≈ 1.8 to 31.5**, and "as high as possible without exceeding it" gives **30**.
+
+### Swept — the campus plan moves monotonically, as it should
+```
+bonus    campus plan (sems 3-8)
+  2.0    4 국제 / 2 신촌
+ 10.0    3 국제 / 3 신촌
+ 30.0    1 국제 / 5 신촌     <- the forced minimum (2 국제 counting Fall 2026)
+```
+R200 independently measured the same flip point at 30 in the OLD model. Two different models
+agreeing on where the preference binds is a real cross-check.
+
+### The verdict at bonus 30
+```
+branch   Fall week   Σ future      TOTAL
+-           10.315    314.179    324.494
+MR          37.069    267.595    304.664
+WCiv        26.244    281.182    307.426
+LHP         27.090    278.459    305.549
+SciRD       25.940    294.666    320.606
+Lang        36.890    310.577    347.467   ⭐
+```
+**Defer Language, 347.467, margin 22.973.** Agrees with R200's old-model finding that a 신촌
+bonus of 30 flips the verdict to defer Language.
+
+⚠️ `sem 5 국제S ME+ME+QRM3003` scores **−7.050** — a genuinely bad semester, accepted because
+`QRM3003` forces one 국제 Spring and the plan pays for it once rather than spreading it. That
+is the model working as designed (R285 clustering), but it is worth seeing plainly: one
+miserable semester in year 3 is the price of five 신촌 ones.
+
+# ⭐ R293. A PLAUSIBLE ANSWER IS AN ANAESTHETIC — the timetable that looked right made us blind
+
+Iden, on the partition landing back on the morning's timetable:
+> *"That is expected. It was a good timetable by just looking at it, but that actually made us
+> more blind."*
+
+The Fall 2026 answer began the day as `QRM1001 · UIC1561 · UIC1551 · UIC2151-12 · YCE1253 ·
+STA2102 · YCA1006` — defer Language — and ended there. **Nothing in between was right.**
+
+| what was wrong underneath it | rule |
+|---|---|
+| `pools_past.parse` dropped and fabricated hours — 25.4% of all sections | R264 |
+| three separate truncate-then-maximise bugs (`rows[:60]`, `TOPN=3000`, `rows[:400]`) | R260 · R269 · R276 |
+| `k_real.json['disp']` had no producer and could not be regenerated | R267 |
+| `kdefer` had two code paths and neither was chosen on purpose | R272 |
+| `risk.p_get_freshman` declared the recommendation impossible the day its data arrived | R247 |
+| `p_win_bracket` returned certainty for every unmeasured course | R252 · R259 |
+| the whole objective priced avoidance where only relocation is possible | R285 |
+| Chapel counted against the 6-course budget — 16 entries beat their own baseline | R291 |
+| the 신촌 preference was dropped entirely in the rebuild | R292 |
+
+**Every one of those was found because something LOOKED wrong** — a negative loss cost, a
+"cached" line that should have recomputed, a swap listing a card that was already on the page,
+a plan with six 국제 semesters. Not one was found by the numbers drifting. The numbers were
+serene throughout.
+
+### The rule
+**A result that looks right suppresses the checks that would find it wrong.** The
+morning's timetable was defensible on inspection — six courses, no 9am, 월금 free, all degree
+progress — and that plausibility is exactly why nobody interrogated the machinery producing
+it. The bugs surfaced only once the answer started moving and looking strange.
+
+⇒ **Do not treat agreement between a model and intuition as evidence.** It is the condition
+under which errors are least likely to be caught. When output matches expectation, that is the
+moment to check the mechanism, not the moment to stop.
+
+Corollary, and it is the practical form: **prefer diagnostics that can fail loudly over
+outputs that can look fine.** The invariants that actually caught things today were
+`value <= baseline`, `cost(section) >= 0`, `exact == True`, `consts match`, and a fetch count
+against expectation. All of them are boolean and none of them is a number a reader has to
+judge.
+
+# ⭐ R295. TRUNCATE-THEN-MAXIMISE, FOURTH INSTANCE — and the RENDERER caught it
+
+`partition_verdict.py` took `sorted(rows, key=-score)[:40]` — rank by **Fall week**, then
+maximise **Fall + future**. Same defect as R260 (`rows[:60]`), R269 (`TOPN = 3000`) and R276
+(`rows[:400]`). Four independent instances of one mistake: *any prefix taken by one key and
+then optimised by another*.
+
+Found because `render_v3_top50.py` scans every candidate and reported **352.569** against the
+verdict's **347.467**. The true argmax has a Fall week of **19.890** — nowhere near the top 40
+by Fall score, and therefore invisible to the verdict.
+
+**Fixed:** every row, with the DP results disk-cached (`_future_cache.json`, 56 distinct
+remainders) so scanning 113k rows is a lookup.
+
+### THE FINAL VERDICT — partition objective, 신촌 bonus 30
+```
+branch   Fall week   Σ future      TOTAL
+-           10.315    314.179    324.494
+MR          23.890    323.354    347.244
+WCiv        11.190    320.283    331.473
+LHP          9.890    332.679    342.569
+SciRD       13.190    325.479    338.669
+Lang        19.890    332.679    352.569   ⭐
+```
+**Defer Language, 352.569. Second MR 347.244, margin 5.325.**
+
+```
+Fall 2026:  QRM1001-01 · UIC1561-01 · UIC1551-04 · UIC2151-12
+            QRM2004-01 · STA2102-05 · YCA1006-01
+
+sem 3  신촌 S  Seminar                     49.671
+sem 4  신촌 F  Chapel + ECO1101 + ECO2101  35.569
+sem 5  국제 S  ME + ME + QRM3003           −7.050
+sem 6  신촌 F  Lang + ME + MR5             29.749
+sem 7  신촌 S  Seminar                     49.671
+sem 8  신촌 F  Chapel + ECO2102 + ME       25.069
+```
+5 신촌 / 1 국제 across sems 3–8 — the forced minimum of 2 국제 counting Fall 2026 (R144).
+
+⚠️ Note the Fall week is **19.890**, far below the 36.890 the truncated verdict picked. The
+partition deliberately accepts a worse Fall to buy a better remainder — which is R285's whole
+point, and it is only visible once nothing is truncated.
+
+## R296. Documented constraints beat the counting threshold — 9 UNMEASURED cells → 2
+`availability()` called something IMPOSSIBLE only with ≥15 observations elsewhere and zero at
+that campus. UIC/QRM courses have 3–6 observations each, so the threshold could not see what
+the documents state outright:
+
+```
+item      cell    seen here  at campus  total
+WCiv      신촌S            0          0      6
+QRM1001   신촌S/F          0          0      6
+QRM3003   국제F·신촌        0          0      3
+```
+
+R8 (UIC freshman → 국제) and R144 (`QRM3003` is 국제-only AND Spring-only) already say this.
+The threshold returning UNMEASURED was **harmless but right for the wrong reason** — UNMEASURED
+is unplaceable, which happens to be correct at 신촌 — and a later reader could not have told
+the two apart. Now encoded as rules. **9 → 2 UNMEASURED**, and the survivors are genuine season
+gaps: `Seminar` at 신촌F (seen 4× at 신촌 Spring, never Fall) and `ECO2102` at 국제S (seen 3× at
+국제 Fall, never Spring).
+
+## R297. The click order rebuilt on the partition objective — `fallback.json` superseded
+`fallback.py` computed the 8/25 click order as `score + Σunit_cost − K`. That objective no
+longer exists. `partition_clickorder.py` does the same leave-one-out against
+`Fall week + Σ best_week over sems 3–8`.
+
+```
+BASE 352.569 · defer Lang
+  QRM1001-01 · UIC1561-01 · UIC1551-04 · UIC2151-12 · QRM2004-01 · STA2102-05 · YCA1006-01
+
+⭐ CLICK ORDER on 8/25
+   1. UIC1561-01-00   WESTERN CIVILIZATION          21.10
+   2. STA2102-05-00   선형대수                          9.45
+   3. UIC2151-12-00   RESEARCH DESIGN (RDQM)         6.70
+   4. QRM1001-01-00   INTRO TO QRM                   5.33
+   5. QRM2004-01-00   STATISTICAL ANALYTIC METHODS   5.10
+   6. YCA1006-01-00   채플(B)                          1.18
+   7. UIC1551-04-00   WORLD HISTORY II               0.00
+```
+Negative-cost alarm: **none** — every loss costs ≥ 0, as it must.
+
+Note `UIC1551-04` costs **0.00**: `UIC1551-01` substitutes at identical total, so it is a free
+loss. And `UIC1561-01` remains the one that matters, at 21.10 — down from the old model's
+34.62, because the partition can now route around it by deferring WCiv instead.
+
+**R298 — recency beats totals for availability.** An item's campus/season availability is read
+from the last three terms (`2025-2, 2026-1, 2026-2`), not from the all-time total. Measured
+shifts that motivated it: `LHP` and `SciRD` both GAINED 신촌 recently (all-time they look
+국제-only); `ECO2102`'s only 국제 sightings are three sections in `2024-2` and nothing since.
+New verdict `STALE` = "seen at this cell historically, but not in the recent window" and is
+treated as unplaceable, exactly like `UNMEASURED`.
+
+**R299 — STALE needs enough history to be a signal.** R298 as first written called `MR5`
+STALE at 국제F and 신촌S. `MR5` has 6 observations total and bounces campus to campus term to
+term (국 국 신 신 국 신), so its absence from a cell in a 3-term window is sampling noise, not a
+move — and marking it STALE would forbid a legal placement on one data point. Gated behind
+`STALE_MIN_HISTORY = 20` all-time observations. `ECO2102` has 62 and still trips it, which is
+the intended behaviour; `MR5` no longer does. Final table: 40 OK / 9 IMPOSSIBLE / 2 UNMEASURED
+/ 1 STALE.
+
+**R300 — the PICKS asymmetry is one-sided, so the campus plan is robust but the verdict is
+not.** 국제 was tabulated at `PICKS=6`, 신촌 at `PICKS=2`. `PICKS` bounds how many pinned-geometry
+combinations `best_week` maximises over, so `value(PICKS=2) <= value(PICKS=6)` always: the 신촌
+half is UNDERSTATED and the 국제 half is not. Measured on four 신촌 entries — three unchanged
+(`ME` 33.069, `ECO2101` 42.053, `ECO2102+MR5` 38.374) and one moved `24.124 -> 26.558`
+(`Chapel+ME`, +2.434). So it bites on a minority, worth ~10% when it does.
+Consequence, and the reason this is a rule and not a TODO: the standing plan is 5 신촌 / 1 국제,
+chosen WHILE 신촌 was handicapped, so removing the handicap can only reinforce it — the campus
+plan needs no re-derivation. The deferral verdict does: Fall 2026 is 국제 so its week score is
+untouched, but every branch's remainder is priced through 신촌 cells and the branches differ in
+how 신촌-suited their remainders are.
+Rebuilding costs ~19 h at the measured 2 entries / 165 s, so it runs unattended via
+`build_sinchon.py`, not in-session.
+
+**R301 — `partition.save()` was a silent total-wipe machine (red-team F1).** `save()` was
+`json.dump(d, open(OUT,'w'))`: a non-atomic whole-file rewrite executed once per entry,
+hundreds of times a run. `load()` was `except Exception: pass` → return `{'base':{},'cost':{}}`.
+One interrupted write left truncated JSON; the next load silently handed `build_table` an empty
+table, which rebuilt from scratch in 국제S→국제F→신촌S→신촌F order. `build_sinchon.py`'s stall
+guard is blind to this by construction — after a wipe the child DOES work and the count DOES
+move. `save()` is now tmp+fsync+`os.replace` (atomic on POSIX and Windows); `load()` moves the
+bad file to `.corrupt` and exits rather than continuing.
+⚠️ The red team attributed the currently-empty 신촌 half to this bug. That instance is
+MISATTRIBUTED — the 신촌 entries were dropped deliberately at 14:29 for the PICKS=6 rebuild
+(R300). The mechanism is real and was fixed; the specific wipe it was inferred from was not it.
+
+**R302 — a cached future is only comparable under the same bonus AND the same table
+(red-team F2, third recurrence of R250).** `_future_cache.json` was keyed on the remainder
+alone and shared by three programs at two bonuses: `render_v3_top50` and
+`partition_clickorder` set `SINCHON_BONUS=30`; `partition_verdict` never set it, ran at the
+0.0 default, and then read the renderer's 30.0 values out of the same file and reported them as
+its own. The arithmetic is visible in INDEX: six semester values sum to 182.679, shipped "rest
+of degree" is 332.679, difference exactly 150.000 = 5 신촌 × 30. Key is now
+`[sorted(rem), bonus, sha1(table)]`; `partition_verdict` sets the bonus like its peers; the
+poisoned cache was truncated.
+
+**R303 — `islice(product(*pins), PICKS)` had three bugs in one line (red-team F3).**
+(1) clashing products were charged against the PICKS budget, so a cell with 152 legal
+placements could record none; (2) `product` varies the LAST list fastest, so with
+`PICKS ≤ len(pins[-1])` the first item's geometry was never varied — day-spread ordering is
+per-item but the truncation explored one item; (3) `best_exact` began `True` and was untouched
+when nothing was evaluated, stamping never-measured cells `exact`. Net: **72 cells** labelled
+`'OK'`, stamped `exact=True`, holding no value, indistinguishable from `IMPOSSIBLE` to the
+solver — the exact conflation R288 exists to prevent. Measured true values up to **29.498**
+against a Lang→MR margin of **5.325**. Now: enumerate up to `PRODUCT_CAP`, keep only
+non-clashing products, order by combined-mask day spread, spend PICKS only on those; a cell
+with no legal placement is recorded `NOFIT`, not `OK`.
+
+**R304 — a weekend section is a CHOICE, so it makes the item free (red-team F4).** The
+"weekend geometries are free" path fired only `if not wk` — i.e. only when no weekday option
+remained. With both available the code discarded the free option and charged for the weekday
+one, inverting `geoms()`'s own "you choose your section" semantics and contradicting R52.
+Chapel at 신촌 has 일1 (YCA1003/YCA1007 비대면, 동영상콘텐츠, 15 sections/6 terms) alongside
+수3/수10/목6/목7; 국제 chapel has no weekend option at all. Measured: 신촌|F charged 6.125,
+신촌|S charged 7.934, and the shipped plan carries two 신촌 chapels ⇒ **≈+12.25 understated on
+the 신촌 side alone**. A weekend section costs nothing, pins nothing and consumes no academic
+slot, so it weakly dominates: if one exists, the item is free.
+
+**R305 — the evidence for `SINCHON_BONUS = 30` was itself a top-5 truncation (red-team F5).**
+`_sweep_sin.py` ranked by Fall week then maximised `Fall + future` over `[:5]`. R295 had
+already established the true argmax has a Fall week of 19.890, far below even the top 40 — so
+it was never in the prefix at any bonus, and the bracket that selects between a 1-국제 and a
+4-국제 plan was drawn from five rows the model has since declared wrong. Now scans every row.
+⚠️ Every independent bias the audit found (R303's missing cells, R304's chapel over-charge,
+R300's 신촌 PICKS=2 handicap) pushes 신촌 DOWN, i.e. inflates the bonus needed. The bonus must
+be re-swept after the table rebuild, not carried over.
+
+**R306 — the test suite asserts none of this.** `test_v3.py` has no assertion covering parser
+agreement, cost-table completeness, or cache-key composition. R49 was reintroduced twice across
+three modules and R250 has now recurred three times, each time in a file no test looks at.
+Every finding in red-team reply #2 was invisible to the suite.
