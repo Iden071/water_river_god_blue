@@ -28,6 +28,8 @@ def row(**overrides):
         "subsrtDivNm": "CC",
         "atntnMattrDesc": "",
         "gradeEvlMthdDivNm": "절대평가",
+        "rmvlcYn": "0",
+        "rmvlcYnNm": " ",
         "lctreTimeNm": "월3,4",
         "lecrmNm": "강의실A",
         "subjtClNm": "대면",
@@ -102,6 +104,14 @@ class SectionMaskTests(unittest.TestCase):
             section_from_raw(
                 row(lctreTimeNm="월3,4/수3", lecrmNm="실시간온라인")
             )
+
+    def test_blank_delivery_metadata_is_not_assumed_in_person(self):
+        with self.assertRaises(SegmentAlignmentError):
+            section_from_raw(row(lctreTimeNm="월3,4", lecrmNm=""))
+
+    def test_cancellation_field_is_preserved(self):
+        sec = section_from_raw(row(rmvlcYn="1", rmvlcYnNm="폐강"))
+        self.assertTrue(sec.cancelled)
 
 
 if __name__ == "__main__":
