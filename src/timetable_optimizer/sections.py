@@ -29,7 +29,7 @@ class SectionParseError(ValueError):
 
 
 class SegmentAlignmentError(SectionParseError):
-    """Raised when non-empty time segments cannot be aligned with room/mode segments."""
+    """Raised when time segments cannot be aligned with delivery metadata safely."""
 
 
 class DeliveryKind(str, Enum):
@@ -56,6 +56,7 @@ class Section:
     category: str
     note: str
     grading: str
+    cancelled: bool
     time_text: str
     room_text: str
     mode_text: str
@@ -103,9 +104,11 @@ def segment_blocks(segment: str) -> frozenset[tuple[int, int]]:
 
 
 def classify_room_segment(room_segment: str) -> DeliveryKind:
-    """Classify the delivery behavior represented by one room/mode segment."""
+    """Classify the delivery behavior represented by one non-empty room/mode segment."""
 
-    text = str(room_segment or "")
+    text = str(room_segment or "").strip()
+    if not text:
+        raise SegmentAlignmentError("scheduled time has no room/delivery metadata")
     if "중복수강불가" in text:
         return DeliveryKind.VIDEO_BLOCK
     if "동영상" in text:
@@ -157,7 +160,16 @@ def _aligned_segments(
             f"time={time_text!r} room={room_text!r}"
         )
 
-    return [(blocks, classify_room_segment(rooms[i])) for i, (_raw, blocks) in enumerate(times)]
+    out = []
+    for i, (_raw, blocks) in enumerate(times):
+        room = rooms[i].strip()
+        if not room:
+            raise SegmentAlignmentError(
+                "scheduled time has blank room/delivery segment: "
+                f"segment {i + 1}; time={time_text!r} room={room_text!r}"
+            )
+        out.append((blocks, classify_room_segment(room)))
+    return out
 
 
 
@@ -191,13 +203,22 @@ def _masks(
 
 
 
+def _is_cancelled(raw: Mapping[str, Any]) -> bool:
+    """Read the portal's explicit cancellation fields without inferring from free text."""
+
+    name = str(raw.get("rmvlcYnNm") or "").strip()
+    flag = str(raw.get("rmvlcYn") or "").strip()
+    return name == "폐강" or flag == "1"
+
+
+
 def section_from_raw(raw: Mapping[str, Any]) -> Section:
     """Construct a canonical :class:`Section` from one portal row.
 
     Both campuses are accepted. A row with no scheduled time is preserved with zero masks.
-    Ambiguous time/room alignment raises :class:`SegmentAlignmentError` instead of silently
-    copying the final room segment or discarding the section. A higher ingestion layer can
-    catch that exception and record an explicit unresolved-data status.
+    Ambiguous or missing time/room alignment raises :class:`SegmentAlignmentError` instead
+    of copying a room segment, assuming in-person delivery, or discarding the section. A
+    higher ingestion layer can catch that exception and retain an explicit unresolved row.
     """
 
     time_text = str(raw.get("lctreTimeNm") or "").strip()
@@ -226,6 +247,7 @@ def section_from_raw(raw: Mapping[str, Any]) -> Section:
         category=str(raw.get("subsrtDivNm") or ""),
         note=str(raw.get("atntnMattrDesc") or ""),
         grading=str(raw.get("gradeEvlMthdDivNm") or ""),
+        cancelled=_is_cancelled(raw),
         time_text=time_text,
         room_text=room_text,
         mode_text=str(raw.get("subjtClNm") or ""),
