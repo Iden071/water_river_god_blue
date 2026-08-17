@@ -1,7 +1,7 @@
 # SPEC — Timetable Optimization
 
 **Status:** Provisional specification v0.3  
-**Stage:** Stage 2 logic audit completed; specification remains amendable
+**Stage:** Stage 3 implementation audit completed; Stage 4 repair starting
 
 This document defines what the program is supposed to do.
 
@@ -438,4 +438,4 @@ The program is not intended to:
 
 ### Provisional
 
-The purpose specification is stable enough to govern Stage 3, but remains amendable if later implementation or validation work exposes a genuine omitted purpose-level assumption.
+The purpose specification is stable enough to govern Stage 4 repair, but remains amendable if repair or validation work exposes a genuine omitted purpose-level assumption.
