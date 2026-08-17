@@ -1,7 +1,7 @@
 # SPEC — Timetable Optimization
 
-**Status:** Provisional specification v0.2  
-**Stage:** 1A — first omission sweep completed; not frozen
+**Status:** Provisional specification v0.3  
+**Stage:** Stage 2 logic audit completed; specification remains amendable
 
 This document defines what the program is supposed to do.
 
@@ -188,6 +188,14 @@ The future must not be artificially filled with nonexistent courses merely to ma
 Future timetable allocations are planning instruments used to evaluate today's choice. They are **not predictions of exact future schedules**, because future catalogues, future course availability, residence/timeline state, leaves, military service, summer use, and other conditions may be uncertain or change.
 
 Such future timeline assumptions should therefore be explicit scenarios rather than silently fixed facts.
+
+### 7.1 Chapel timing preference
+
+The user's Chapel preference is **timing-specific**, not a generic intrinsic bonus attached to every Chapel whenever it is taken.
+
+The relevant reason for preferring Chapel now is that the degree requires offline Chapel passes, and completing those offline passes while the freshman/international-campus Chapel setup is appropriate is desirable. A Chapel taken now may therefore carry a real timing advantage over postponing that same obligation.
+
+The optimizer must not interpret this as "every Chapel is worth +10 whenever taken" or duplicate the same value once in the present and again when the obligation is eventually completed. The numerical magnitude should be re-established or sensitivity-tested when the model is rebuilt.
 
 ---
 
@@ -408,6 +416,7 @@ The program is not intended to:
 - Credit load, not raw course count, is the relevant load dimension.
 - Future degree obligations are finite and must be conserved.
 - Avoided required-course costs may merely be relocated.
+- Chapel has a timing-specific preference for completing required offline passes while the freshman/international-campus setup is appropriate; it is not a generic permanent per-Chapel bonus.
 - 국제 is effectively the dorm environment for local travel.
 - Mixed-campus semesters are possible and should be modeled through actual travel paths and feasibility.
 - Difficulty and workload belong in the model when defensibly represented.
@@ -429,4 +438,4 @@ The program is not intended to:
 
 ### Provisional
 
-Everything in this document remains subject to further Stage 1 omission checks and to correction if Stage 2 exposes a missing purpose-level assumption.
+The purpose specification is stable enough to govern Stage 3, but remains amendable if later implementation or validation work exposes a genuine omitted purpose-level assumption.
