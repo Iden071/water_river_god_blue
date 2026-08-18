@@ -46,8 +46,11 @@ from .history import (
 )
 from .preferences import (
     EstimateStatus,
+    LinearPreferenceRelation,
+    LinearPreferenceTerm,
     PreferenceEstimate,
     PreferenceProvenance,
+    PreferenceRelationKind,
     PreferenceRuleError,
     PreferenceSourceKind,
     PreferenceValue,
@@ -86,6 +89,12 @@ from .sections import (
     section_from_raw,
     segment_blocks,
 )
+from .timetable_quality import (
+    DayQualityFacts,
+    TimetableQualityError,
+    TimetableQualityFacts,
+    extract_timetable_quality,
+)
 
 __all__ = [
     "AnyOfRequirement",
@@ -99,6 +108,7 @@ __all__ = [
     "CourseRecognitionEvidence",
     "CreditBucketRequirement",
     "DAYS",
+    "DayQualityFacts",
     "DegreeRuleError",
     "DegreeScenario",
     "DegreeState",
@@ -113,6 +123,8 @@ __all__ = [
     "LHP_HISTORY_CODES",
     "LHP_LITERATURE_CODES",
     "LHP_PHILOSOPHY_CODES",
+    "LinearPreferenceRelation",
+    "LinearPreferenceTerm",
     "ListingObservation",
     "ListingStatus",
     "MajorMode",
@@ -123,6 +135,7 @@ __all__ = [
     "PhysicalStatus",
     "PreferenceEstimate",
     "PreferenceProvenance",
+    "PreferenceRelationKind",
     "PreferenceRuleError",
     "PreferenceSourceKind",
     "PreferenceValue",
@@ -146,10 +159,13 @@ __all__ = [
     "SourceListingView",
     "SourceRef",
     "SpecificCourseRequirement",
+    "TimetableQualityError",
+    "TimetableQualityFacts",
     "UIC_LANGUAGE_CODES",
     "UnresolvedSchedule",
     "apply_recognition",
     "classify_room_segment",
+    "extract_timetable_quality",
     "ingest_catalog",
     "ingest_history",
     "load_catalog_files",
