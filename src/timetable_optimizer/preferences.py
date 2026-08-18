@@ -5,9 +5,9 @@ whole-plan utility function consumes it. It deliberately does not choose a
 master score, aggregate second-major scenarios, or convert missing information
 into a numerical default.
 
-Preference evidence is not required to arrive as a scalar.  A user may know
+Preference evidence is not required to arrive as a scalar. A user may know
 that one state is worse than another, or that two state differences are equal,
-without having supplied either state with an absolute number.  Linear relations
+without having supplied either state with an absolute number. Linear relations
 preserve those statements directly instead of forcing an invented point value.
 """
 
@@ -23,7 +23,7 @@ class PreferenceRuleError(ValueError):
 
 
 class PreferenceSourceKind(str, Enum):
-    """Allowed origins for subjective numerical preference information."""
+    """Allowed origins for subjective preference information."""
 
     USER_INPUT = "user_input"
     DERIVED = "derived"
@@ -213,7 +213,7 @@ class LinearPreferenceRelation:
         sum(term.coefficient * utility(term.dimension_id))  relation  rhs
 
     For example, if larger utility is better, "missing dinner is worse than
-    missing lunch" can be stored as ``dinner - lunch < 0``.  A later solver may
+    missing lunch" can be stored as ``dinner - lunch < 0``. A later solver may
     combine such evidence with anchors or bounds, but this layer does not do so.
     """
 
@@ -236,3 +236,37 @@ class LinearPreferenceRelation:
             raise PreferenceRuleError(
                 "linear preference relation must combine duplicate dimensions explicitly"
             )
+
+
+@dataclass(frozen=True)
+class PreferenceProfile:
+    """A validated bundle of scalar and relational preference evidence."""
+
+    profile_id: str
+    values: tuple[PreferenceValue, ...] = ()
+    relations: tuple[LinearPreferenceRelation, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.profile_id.strip():
+            raise PreferenceRuleError("preference profile requires a nonblank profile_id")
+        ids = [value.dimension_id for value in self.values]
+        if len(ids) != len(set(ids)):
+            raise PreferenceRuleError(
+                "preference profile cannot contain duplicate scalar dimensions"
+            )
+
+    def value(self, dimension_id: str) -> PreferenceValue:
+        hits = [value for value in self.values if value.dimension_id == dimension_id]
+        if len(hits) != 1:
+            raise PreferenceRuleError(
+                f"expected exactly one preference value {dimension_id!r}, found {len(hits)}"
+            )
+        return hits[0]
+
+    @property
+    def unmeasured_dimensions(self) -> frozenset[str]:
+        return frozenset(
+            value.dimension_id
+            for value in self.values
+            if value.estimate.status is EstimateStatus.UNMEASURED
+        )
