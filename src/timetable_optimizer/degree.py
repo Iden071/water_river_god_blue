@@ -79,9 +79,10 @@ class ChapelRequirement:
     title: str
     passes_required: int
     credits_per_pass: float
-    # The ordinary graduation tables establish four Chapel passes but do not, in the
-    # sources migrated in B.1, establish the separate offline-pass threshold. Preserve
-    # that threshold as unresolved rather than inventing a number here.
+    # Kept nullable so another scenario can preserve an unresolved modality rule. The
+    # current 2026 first-major scenario sets this explicitly to zero: verified current
+    # Chapel rules require four semester passes and do not establish a separate minimum
+    # number of face-to-face passes.
     offline_passes_required: int | None = None
     source: str = "2026 curriculum"
 
@@ -258,7 +259,7 @@ class DegreeState:
             if self.chapel.passes_completed < requirement.passes_required:
                 return False
             if requirement.offline_passes_required is None:
-                # Total passes are known, but the complete Chapel rule is not yet known.
+                # Some other scenario could still carry unresolved modality semantics.
                 return False
             return self.chapel.offline_passes_min >= requirement.offline_passes_required
         return False
@@ -386,7 +387,14 @@ def apply_recognition(
 
 def _common_requirements() -> tuple[Requirement, ...]:
     return (
-        ChapelRequirement("cc_chapel", "Chapel", passes_required=4, credits_per_pass=0.5),
+        ChapelRequirement(
+            "cc_chapel",
+            "Chapel",
+            passes_required=4,
+            credits_per_pass=0.5,
+            offline_passes_required=0,
+            source="2026 curriculum + current Yonsei Chapel rules, verified 2026-08-18",
+        ),
         SpecificCourseRequirement(
             "cc_christianity",
             "Understanding Christianity",
