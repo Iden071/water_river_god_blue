@@ -68,8 +68,25 @@ class TimetableQualityFactTests(unittest.TestCase):
         self.assertEqual(tuesday.last_fixed_period, 11)
         self.assertEqual(tuesday.holes, (2,))
         self.assertEqual(tuesday.fixed_runs, (4, 5))
-        self.assertTrue(tuesday.lunch_fully_blocked)
+        # Period 5 is free in this fixture, so the 3·4·5 lunch window is not
+        # fully blocked.  The old True expectation contradicted the fixture.
+        self.assertFalse(tuesday.lunch_fully_blocked)
         self.assertTrue(tuesday.dinner_fully_blocked)
+
+    def test_lunch_is_fully_blocked_only_when_periods_3_4_5_are_all_fixed(self):
+        blocked = section_from_raw(
+            row("L-01", "L", time="화3,4,5", room="강의실A")
+        )
+        open_window = section_from_raw(
+            row("O-01", "O", time="화3,4", room="강의실A")
+        )
+
+        self.assertTrue(
+            extract_timetable_quality((blocked,)).days[1].lunch_fully_blocked
+        )
+        self.assertFalse(
+            extract_timetable_quality((open_window,)).days[1].lunch_fully_blocked
+        )
 
     def test_friday_event_window_uses_fixed_not_presence_time(self):
         live_online = section_from_raw(
