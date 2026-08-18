@@ -30,7 +30,9 @@ from .degree import (
     DegreeState,
     RecognitionEffect,
     SpecificCourseRequirement,
+    requirement_major_owner,
 )
+from .second_majors import PHYSICS_ELECTIVE_2026_CODES
 from .sections import Section
 
 
@@ -282,6 +284,23 @@ def _qrm_me_status(
     )
 
 
+def _physics_elective_status(
+    section: Section,
+    requirement: CreditBucketRequirement,
+) -> QualificationDecision:
+    if section.course_code in PHYSICS_ELECTIVE_2026_CODES:
+        return _decision(
+            requirement.requirement_id,
+            QualificationStatus.QUALIFIED,
+            "course code is on the current published Physics major-elective catalogue",
+        )
+    return _decision(
+        requirement.requirement_id,
+        QualificationStatus.NOT_QUALIFIED,
+        "course code is not on the current published Physics major-elective catalogue",
+    )
+
+
 def _language_status(
     section: Section,
     evidence: CourseRecognitionEvidence,
@@ -447,7 +466,10 @@ def recognize_section(
             )
 
     # L-H-P category recognition.
-    if any(isinstance(req, CategoryCountRequirement) and req.requirement_id == "cc_lhp" for req in scenario.requirements):
+    if any(
+        isinstance(req, CategoryCountRequirement) and req.requirement_id == "cc_lhp"
+        for req in scenario.requirements
+    ):
         category = _lhp_category(section.course_code)
         if category is None:
             decisions.append(
@@ -472,7 +494,9 @@ def recognize_section(
     decisions.append(
         _decision(
             "cc_uic_seminar",
-            QualificationStatus.QUALIFIED if _is_uic_seminar(section.course_code) else QualificationStatus.NOT_QUALIFIED,
+            QualificationStatus.QUALIFIED
+            if _is_uic_seminar(section.course_code)
+            else QualificationStatus.NOT_QUALIFIED,
             "2026 curriculum defines UIC35xx/UIC36xx as UIC Seminars"
             if _is_uic_seminar(section.course_code)
             else "course code is outside the documented UIC35xx/UIC36xx seminar ranges",
@@ -480,11 +504,21 @@ def recognize_section(
     )
     decisions.append(_qrm_me_status(section, program_listings))
 
+    # Concrete second-major bucket rules whose evidence has been migrated.
+    for requirement in scenario.requirements:
+        if (
+            isinstance(requirement, CreditBucketRequirement)
+            and requirement.qualification_rule_id == "physics_major_elective_2026"
+        ):
+            decisions.append(_physics_elective_status(section, requirement))
+
     # Chapel is a nonstandard pass requirement, not an ordinary bucket.
     decisions.append(
         _decision(
             "cc_chapel",
-            QualificationStatus.QUALIFIED if section.course_code in CHAPEL_2026_CODES else QualificationStatus.NOT_QUALIFIED,
+            QualificationStatus.QUALIFIED
+            if section.course_code in CHAPEL_2026_CODES
+            else QualificationStatus.NOT_QUALIFIED,
             "course code is a 2026 Chapel code"
             if section.course_code in CHAPEL_2026_CODES
             else "course code is not a documented 2026 Chapel code",
@@ -493,13 +527,18 @@ def recognize_section(
 
     # Apply the Korean-taught Economics/Applied Statistics cap to QRM-major recognitions.
     qrm_ids = _qrm_major_requirement_ids(scenario)
-    cap_subject, language_issue = _subject_to_korean_qrm_cap(section, source_views, evidence)
+    cap_subject, language_issue = _subject_to_korean_qrm_cap(
+        section, source_views, evidence
+    )
     if language_issue is not None:
         issues.append(language_issue)
     adjusted: list[QualificationDecision] = []
     korean_qrm_credits = 0.0
     for decision in decisions:
-        if decision.requirement_id not in qrm_ids or decision.status is not QualificationStatus.QUALIFIED:
+        if (
+            decision.requirement_id not in qrm_ids
+            or decision.status is not QualificationStatus.QUALIFIED
+        ):
             adjusted.append(decision)
             continue
 
@@ -607,17 +646,74 @@ def recognize_section(
         elif isinstance(requirement, CreditBucketRequirement):
             bucket_claims.append((rid, section.credits))
 
-    # A non-requirement elective still has a valid graduation-credit-only transition.
-    effect = RecognitionEffect.course(
-        completion_id=section.section_id,
-        course_code=section.course_code,
-        credits=section.credits,
-        satisfy=tuple(satisfy),
-        category_claims=tuple(category_claims),
-        bucket_credit_claims=tuple(bucket_claims),
-        qrm_korean_major_credits=korean_qrm_credits,
-        label=section.name,
+    claim_requirement_ids = set(satisfy)
+    claim_requirement_ids.update(rid for rid, _ in category_claims)
+    claim_requirement_ids.update(rid for rid, _ in bucket_claims)
+    major_owners = frozenset(
+        owner
+        for rid in claim_requirement_ids
+        if (owner := requirement_major_owner(scenario, rid)) is not None
     )
+
+    def effect_for_owner(selected_owner: str | None) -> RecognitionEffect:
+        def keep(requirement_id: str) -> bool:
+            owner = requirement_major_owner(scenario, requirement_id)
+            return owner is None or selected_owner is None or owner == selected_owner
+
+        selected_satisfy = tuple(rid for rid in satisfy if keep(rid))
+        selected_categories = tuple(
+            claim for claim in category_claims if keep(claim[0])
+        )
+        selected_buckets = tuple(
+            claim for claim in bucket_claims if keep(claim[0])
+        )
+        qrm_selected = any(
+            requirement_major_owner(scenario, rid) == "qrm"
+            for rid in selected_satisfy
+        ) or any(
+            requirement_major_owner(scenario, rid) == "qrm"
+            for rid, _ in selected_buckets
+        )
+        return RecognitionEffect.course(
+            completion_id=section.section_id,
+            course_code=section.course_code,
+            credits=section.credits,
+            satisfy=selected_satisfy,
+            category_claims=selected_categories,
+            bucket_credit_claims=selected_buckets,
+            qrm_korean_major_credits=korean_qrm_credits if qrm_selected else 0.0,
+            label=section.name,
+        )
+
+    if scenario.exclusive_major_assignment and len(major_owners) > 1:
+        labels = {"qrm": "qrm", "second_major": "second-major"}
+        options = tuple(
+            RecognitionOption(
+                option_id=f"{section.section_id}:assign-{labels.get(owner, owner)}",
+                effect=effect_for_owner(owner),
+                reason=(
+                    "course is eligible for more than one major; this option assigns its "
+                    f"major recognition only to {labels.get(owner, owner)} while preserving "
+                    "compatible non-major recognition"
+                ),
+            )
+            for owner in sorted(major_owners)
+        )
+        issues.append(
+            RecognitionIssue(
+                "exclusive_major_assignment_choice",
+                "course is eligible for both QRM and the second major; one major assignment must be chosen",
+            )
+        )
+        return RecognitionAssessment(
+            section_id=section.section_id,
+            decisions=tuple(decisions),
+            options=options,
+            issues=tuple(issues),
+        )
+
+    # A non-requirement elective still has a valid graduation-credit-only transition.
+    effect = effect_for_owner(None)
     option = RecognitionOption(
         option_id=f"{section.section_id}:default",
         effect=effect,
