@@ -40,9 +40,9 @@ class DegreeScenarioStructureTests(unittest.TestCase):
         self.assertIsInstance(chapel, ChapelRequirement)
         self.assertEqual(chapel.passes_required, 4)
         self.assertEqual(chapel.credits_per_pass, 0.5)
-        # The ordinary graduation sources establish four passes but do not establish
-        # the separate offline-pass threshold. Keep that threshold unresolved here.
-        self.assertIsNone(chapel.offline_passes_required)
+        # Current verified Chapel rules require four passes; no separate minimum
+        # number of face-to-face/offline passes is established as a graduation rule.
+        self.assertEqual(chapel.offline_passes_required, 0)
 
     def test_mr5_is_an_any_of_requirement_not_a_flattened_course(self):
         scenario = qrm_single_major_2026()
