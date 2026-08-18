@@ -61,6 +61,17 @@ class CatalogObservationTests(unittest.TestCase):
         self.assertTrue(all(o.status is ObservationStatus.PARSED for o in snapshot.observations))
         self.assertIsInstance(snapshot.observations[1].section.schedule, UnresolvedSchedule)
 
+    def test_section_id_not_course_code_is_physical_identity(self):
+        snapshot = ingest_catalog([
+            row("TEST1001-01-00"),
+            row("TEST1001-02-00", cgprfNm="Other Professor"),
+        ])
+        self.assertEqual({section.course_code for section in snapshot.sections}, {"TEST1001"})
+        self.assertEqual(
+            {section.section_id for section in snapshot.sections},
+            {"TEST1001-01-00", "TEST1001-02-00"},
+        )
+
     def test_raw_observation_is_detached_from_later_input_mutation(self):
         raw = row()
         snapshot = ingest_catalog([raw])
@@ -223,7 +234,12 @@ class RealFallCatalogTests(unittest.TestCase):
 
     def test_source_file_fingerprint_is_recorded(self):
         self.assertEqual(len(self.snapshot.source_fingerprint), 64)
-        self.assertTrue(all(o.source.source_fingerprint == self.snapshot.source_fingerprint for o in self.snapshot.observations))
+        self.assertTrue(
+            all(
+                observation.source.source_fingerprint == self.snapshot.source_fingerprint
+                for observation in self.snapshot.observations
+            )
+        )
 
 
 if __name__ == "__main__":
