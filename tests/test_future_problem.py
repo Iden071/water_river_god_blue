@@ -38,13 +38,20 @@ def active_term(
     campus=CampusAccessKind.ANY,
     catalogue=FutureCatalogueBasisKind.EXPLICIT_SCENARIO,
 ):
+    if catalogue is FutureCatalogueBasisKind.HISTORICAL_ANALOG:
+        catalogue_basis = FutureCatalogueBasis(
+            catalogue,
+            source_terms=("2026S",),
+        )
+    else:
+        catalogue_basis = FutureCatalogueBasis(catalogue)
     return FutureTermScenario(
         term_id=term_id,
         activity=TermActivity.ACTIVE,
         ordinary_credit_cap=18.0,
         residence=ResidenceState.HOME,
         campus_access=CampusAccessScenario(campus),
-        catalogue_basis=FutureCatalogueBasis(catalogue),
+        catalogue_basis=catalogue_basis,
     )
 
 
