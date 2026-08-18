@@ -20,3 +20,5 @@ jobs:
           python-version: "3.12"
       - name: Run Stage 4 unit tests
         run: python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Audit historical catalogue ingestion
+        run: python scripts/audit_historical_catalog.py past_terms.json
