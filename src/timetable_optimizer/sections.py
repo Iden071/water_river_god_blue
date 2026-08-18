@@ -116,6 +116,10 @@ class Section:
     cancelled: bool | None
     mode_text: str
     schedule: Schedule
+    # Preserve the portal's human-readable lecture-language label independently of its
+    # opaque code. Downstream rules may use an explicit label; they must not reverse-engineer
+    # an undocumented numeric code.
+    language_name: str = ""
 
     @property
     def schedule_is_parsed(self) -> bool:
@@ -340,4 +344,5 @@ def section_from_raw(raw: Mapping[str, Any]) -> Section:
         cancelled=_cancelled(raw),
         mode_text=str(raw.get("subjtClNm") or ""),
         schedule=parse_schedule(raw.get("lctreTimeNm"), raw.get("lecrmNm")),
+        language_name=str(raw.get("srclnLctreLangDivNm") or "").strip(),
     )
