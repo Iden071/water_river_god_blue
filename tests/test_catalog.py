@@ -86,6 +86,18 @@ class CatalogObservationTests(unittest.TestCase):
         self.assertEqual(snapshot.observations[0].status, ObservationStatus.UNRESOLVED)
         self.assertEqual(len(snapshot.physical_sections), 0)
 
+    def test_source_listing_view_is_preserved_outside_physical_section(self):
+        snapshot = ingest_catalog([
+            row(estblDeprtNm="Economics", hy="2", subsrtDivNm="MB")
+        ])
+        observation = snapshot.observations[0]
+        self.assertEqual(observation.listing_view.department, "Economics")
+        self.assertEqual(observation.listing_view.year_label, "2")
+        self.assertEqual(observation.listing_view.catalogue_category, "MB")
+        self.assertFalse(hasattr(observation.section, "department"))
+        self.assertFalse(hasattr(observation.section, "year_label"))
+        self.assertFalse(hasattr(observation.section, "catalogue_category"))
+
 
 class ReconciliationTests(unittest.TestCase):
     def test_identical_duplicate_observations_are_coalesced_with_both_provenances(self):
@@ -98,7 +110,20 @@ class ReconciliationTests(unittest.TestCase):
         self.assertEqual(record.observation_indexes, (0, 1))
         self.assertEqual(len(snapshot.sections), 1)
 
-    def test_contradictory_duplicate_observations_are_not_first_or_last_write_wins(self):
+    def test_listing_view_differences_do_not_create_physical_conflict(self):
+        snapshot = ingest_catalog([
+            row(estblDeprtNm="Economics", hy="2", subsrtDivNm="MB"),
+            row(estblDeprtNm="QRM", hy="1,2", subsrtDivNm="ME"),
+        ])
+        record = snapshot.record_for("TEST1001-01-00")
+        self.assertTrue(record.usable)
+        self.assertEqual(record.reconciliation, ReconciliationKind.COALESCED_IDENTICAL)
+        self.assertEqual(
+            {(view.department, view.year_label, view.catalogue_category) for view in snapshot.source_views_for("TEST1001-01-00")},
+            {("Economics", "2", "MB"), ("QRM", "1,2", "ME")},
+        )
+
+    def test_contradictory_physical_observations_are_not_first_or_last_write_wins(self):
         snapshot = ingest_catalog([row(), row(cgprfNm="Other Professor")])
         record = snapshot.record_for("TEST1001-01-00")
         self.assertEqual(record.status, PhysicalStatus.UNRESOLVED)
@@ -109,16 +134,18 @@ class ReconciliationTests(unittest.TestCase):
 
 
 class ListingOverlayTests(unittest.TestCase):
-    def test_program_category_is_separate_from_physical_catalogue_category(self):
+    def test_program_category_is_separate_from_source_listing_view(self):
         sid = "TEST1001-01-00"
         snapshot = ingest_catalog(
-            [row(sid, subsrtDivNm="MB")],
+            [row(sid, estblDeprtNm="Economics", subsrtDivNm="MB")],
             program_listings={sid: {"cat": "ME", "hy": "2", "camps": "신촌"}},
         )
         record = snapshot.record_for(sid)
+        source_view = snapshot.source_views_for(sid)[0]
         listing = snapshot.listings_for(sid, program="QRM")[0]
         self.assertTrue(record.usable)
-        self.assertEqual(record.section.catalogue_category, "MB")
+        self.assertEqual(source_view.catalogue_category, "MB")
+        self.assertEqual(source_view.department, "Economics")
         self.assertEqual(listing.listed_category, "ME")
         self.assertEqual(listing.year_label, "2")
         self.assertEqual(listing.campus, "신촌")
