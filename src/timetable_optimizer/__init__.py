@@ -56,6 +56,16 @@ from .degree import (
     qrm_single_major_2026,
     spring_2026_initial_state,
 )
+from .degree_remainder import (
+    AnyOfRemainder,
+    CategoryCountRemainder,
+    ChapelRemainder,
+    CreditBucketRemainder,
+    DegreeRemainder,
+    RequirementRemainder,
+    SpecificCourseRemainder,
+    degree_remainder,
+)
 from .fall2026_preferences import fall2026_preference_profile
 from .history import (
     HistoricalTerm,
@@ -149,6 +159,7 @@ from .travel import (
 )
 
 __all__ = [
+    "AnyOfRemainder",
     "AnyOfRequirement",
     "CHAPEL_2026_CODES",
     "CampusDayPath",
@@ -162,16 +173,20 @@ __all__ = [
     "CandidateLoadFacts",
     "CatalogIssue",
     "CatalogSnapshot",
+    "CategoryCountRemainder",
     "CategoryCountRequirement",
     "ChapelProgress",
+    "ChapelRemainder",
     "ChapelRequirement",
     "Completion",
     "ConstraintEvidenceStatus",
     "CoursePreferenceError",
     "CourseRecognitionEvidence",
+    "CreditBucketRemainder",
     "CreditBucketRequirement",
     "DAYS",
     "DayQualityFacts",
+    "DegreeRemainder",
     "DegreeRuleError",
     "DegreeScenario",
     "DegreeState",
@@ -223,6 +238,7 @@ __all__ = [
     "RegistrationAssessment",
     "RegistrationEvidenceError",
     "RegistrationRegime",
+    "RequirementRemainder",
     "SCIRD_KNOWN_CODES",
     "Schedule",
     "ScheduleSegment",
@@ -235,6 +251,7 @@ __all__ = [
     "SegmentAlignmentError",
     "SourceListingView",
     "SourceRef",
+    "SpecificCourseRemainder",
     "SpecificCourseRequirement",
     "TimetableQualityError",
     "TimetableQualityFacts",
@@ -251,6 +268,7 @@ __all__ = [
     "assess_freshman_registration",
     "assess_section_course_preferences",
     "classify_room_segment",
+    "degree_remainder",
     "evaluate_timetable_utility",
     "extract_timetable_quality",
     "extract_travel_path_facts",
