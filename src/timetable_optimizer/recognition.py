@@ -32,7 +32,7 @@ from .degree import (
     SpecificCourseRequirement,
     requirement_major_owner,
 )
-from .second_majors import PHYSICS_ELECTIVE_2026_CODES
+from .second_majors import EEE_ELECTIVE_2026_CODES, PHYSICS_ELECTIVE_2026_CODES
 from .sections import Section
 
 
@@ -301,6 +301,23 @@ def _physics_elective_status(
     )
 
 
+def _eee_elective_status(
+    section: Section,
+    requirement: CreditBucketRequirement,
+) -> QualificationDecision:
+    if section.course_code in EEE_ELECTIVE_2026_CODES:
+        return _decision(
+            requirement.requirement_id,
+            QualificationStatus.QUALIFIED,
+            "course code is on the current published EEE major-elective catalogue",
+        )
+    return _decision(
+        requirement.requirement_id,
+        QualificationStatus.NOT_QUALIFIED,
+        "course code is not on the current published EEE major-elective catalogue",
+    )
+
+
 def _language_status(
     section: Section,
     evidence: CourseRecognitionEvidence,
@@ -506,11 +523,12 @@ def recognize_section(
 
     # Concrete second-major bucket rules whose evidence has been migrated.
     for requirement in scenario.requirements:
-        if (
-            isinstance(requirement, CreditBucketRequirement)
-            and requirement.qualification_rule_id == "physics_major_elective_2026"
-        ):
+        if not isinstance(requirement, CreditBucketRequirement):
+            continue
+        if requirement.qualification_rule_id == "physics_major_elective_2026":
             decisions.append(_physics_elective_status(section, requirement))
+        elif requirement.qualification_rule_id == "eee_major_elective_2018_plus":
+            decisions.append(_eee_elective_status(section, requirement))
 
     # Chapel is a nonstandard pass requirement, not an ordinary bucket.
     decisions.append(
