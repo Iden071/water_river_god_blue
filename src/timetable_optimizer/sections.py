@@ -1,8 +1,13 @@
 """Pure canonical section and schedule primitives for the Stage 4 rebuild.
 
-This module is deliberately limited to source-faithful structural facts.  It performs no
-file I/O, makes no degree/eligibility/preference decisions, and never guesses a schedule
+This module is deliberately limited to source-faithful *physical-section* facts.  It performs
+no file I/O, makes no degree/eligibility/preference decisions, and never guesses a schedule
 when the source data is ambiguous.
+
+Department, catalogue category, and year label are deliberately absent from :class:`Section`.
+The historical catalogue proves that the same physical section can be listed under different
+departments/categories/year labels in the same term.  Those fields therefore belong to the
+source listing view retained by the catalogue-ingestion layer, not to physical identity.
 
 A schedule has three different meanings when it is successfully parsed:
 
@@ -96,7 +101,7 @@ Schedule: TypeAlias = ParsedSchedule | NoListedSchedule | UnresolvedSchedule
 
 @dataclass(frozen=True)
 class Section:
-    """Canonical physical-section facts independent of downstream model decisions."""
+    """Canonical physical-section facts independent of listing/degree/model decisions."""
 
     section_id: str
     course_code: str
@@ -105,10 +110,7 @@ class Section:
     campus: str
     credits: float | None
     professor: str
-    department: str
-    year_label: str
     language_code: str
-    catalogue_category: str
     note: str
     grading: str
     cancelled: bool | None
@@ -332,10 +334,7 @@ def section_from_raw(raw: Mapping[str, Any]) -> Section:
         campus=str(raw.get("campsDivNm") or ""),
         credits=_credits(raw),
         professor=str(raw.get("cgprfNm") or ""),
-        department=str(raw.get("estblDeprtNm") or ""),
-        year_label=str(raw.get("hy") or ""),
         language_code=str(raw.get("srclnLctreLangDivCd") or ""),
-        catalogue_category=str(raw.get("subsrtDivNm") or ""),
         note=str(raw.get("atntnMattrDesc") or ""),
         grading=str(raw.get("gradeEvlMthdDivNm") or ""),
         cancelled=_cancelled(raw),
