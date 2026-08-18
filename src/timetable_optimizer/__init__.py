@@ -76,6 +76,12 @@ from .future_opportunities import (
     FutureTermOpportunitySet,
     OpportunitySetStatus,
 )
+from .future_problem import (
+    FuturePlanningProblem,
+    FutureProblemBlocker,
+    FutureProblemError,
+    build_future_planning_problem,
+)
 from .future_scenarios import (
     CampusAccessKind,
     CampusAccessScenario,
@@ -222,6 +228,9 @@ __all__ = [
     "FutureOfferingEvidenceKind",
     "FutureOpportunityError",
     "FutureOpportunityScenario",
+    "FuturePlanningProblem",
+    "FutureProblemBlocker",
+    "FutureProblemError",
     "FutureScenarioError",
     "FutureTermOpportunitySet",
     "FutureTermScenario",
@@ -303,6 +312,7 @@ __all__ = [
     "assess_candidate",
     "assess_freshman_registration",
     "assess_section_course_preferences",
+    "build_future_planning_problem",
     "classify_room_segment",
     "degree_remainder",
     "evaluate_timetable_utility",
