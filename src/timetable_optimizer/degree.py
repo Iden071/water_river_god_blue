@@ -1,17 +1,18 @@
 """Canonical degree/recognition state for the Stage 4 rebuild.
 
 This layer deliberately knows nothing about timetable geometry, travel, professor quality,
-registration risk, or future catalogue prediction.  It represents unique earned graduation
+registration risk, or future catalogue prediction. It represents unique earned graduation
 credits plus scenario-specific institutional requirements.
 
 Qualification of arbitrary catalogue sections for broad buckets such as QRM ME, Language,
-SciRD, or UIC Seminar is a later recognition-evidence layer.  This module defines the
-requirement graph and validates state transitions; it does not infer missing recognition.
+SciRD, or UIC Seminar lives in :mod:`timetable_optimizer.recognition`. This module defines
+the requirement graph and protects state-transition invariants; it does not infer missing
+recognition.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from enum import Enum
 from typing import TypeAlias
 
@@ -79,7 +80,7 @@ class ChapelRequirement:
     passes_required: int
     credits_per_pass: float
     # The ordinary graduation tables establish four Chapel passes but do not, in the
-    # sources migrated in B.1, establish the separate offline-pass threshold.  Preserve
+    # sources migrated in B.1, establish the separate offline-pass threshold. Preserve
     # that threshold as unresolved rather than inventing a number here.
     offline_passes_required: int | None = None
     source: str = "2026 curriculum"
@@ -151,6 +152,10 @@ class RecognitionEffect:
     bucket_credit_claims: tuple[tuple[str, float], ...] = ()
     chapel_pass: bool = False
     chapel_offline: bool | None = None
+    # Only credits from Korean-taught School of Economics / Applied Statistics courses
+    # that are actually assigned to QRM major credit belong here. This is a recognition
+    # cap, not a prohibition on taking the course or earning graduation credit.
+    qrm_korean_major_credits: float = 0.0
 
     @classmethod
     def course(
@@ -162,6 +167,7 @@ class RecognitionEffect:
         satisfy: tuple[str, ...] = (),
         category_claims: tuple[tuple[str, str], ...] = (),
         bucket_credit_claims: tuple[tuple[str, float], ...] = (),
+        qrm_korean_major_credits: float = 0.0,
         label: str = "",
     ) -> "RecognitionEffect":
         return cls(
@@ -169,6 +175,7 @@ class RecognitionEffect:
             satisfy=satisfy,
             category_claims=category_claims,
             bucket_credit_claims=bucket_credit_claims,
+            qrm_korean_major_credits=qrm_korean_major_credits,
         )
 
     @classmethod
@@ -195,6 +202,7 @@ class DegreeState:
     category_claims: frozenset[tuple[str, str]] = frozenset()
     bucket_credit_claims: tuple[tuple[str, float], ...] = ()
     chapel: ChapelProgress = ChapelProgress()
+    qrm_korean_major_claims: tuple[tuple[str, float], ...] = ()
 
     @property
     def earned_credits(self) -> float:
@@ -211,6 +219,14 @@ class DegreeState:
             for completion in self.completions
             if completion.course_code is not None
         )
+
+    @property
+    def qrm_korean_major_credits(self) -> float:
+        return sum(credits for _, credits in self.qrm_korean_major_claims)
+
+    @property
+    def qrm_korean_major_courses(self) -> int:
+        return len(self.qrm_korean_major_claims)
 
     def graduation_credit_deficit(self, scenario: DegreeScenario) -> float:
         return max(0.0, scenario.graduation_min_credits - self.earned_credits)
@@ -262,6 +278,18 @@ def _validate_requirement_claim(scenario: DegreeScenario, requirement_id: str) -
     return scenario.requirement(requirement_id)
 
 
+def _effect_claims_qrm_major(scenario: DegreeScenario, effect: RecognitionEffect) -> bool:
+    for requirement_id in effect.satisfy:
+        requirement = scenario.requirement(requirement_id)
+        if getattr(requirement, "counts_toward_qrm_major", False):
+            return True
+    for requirement_id, _ in effect.bucket_credit_claims:
+        requirement = scenario.requirement(requirement_id)
+        if getattr(requirement, "counts_toward_qrm_major", False):
+            return True
+    return False
+
+
 def apply_recognition(
     state: DegreeState,
     scenario: DegreeScenario,
@@ -269,9 +297,10 @@ def apply_recognition(
 ) -> DegreeState:
     """Apply one already-validated recognition effect immutably.
 
-    The later recognition layer is responsible for *producing* valid effects from catalogue
-    evidence.  This function protects state invariants: unique completion credit, known
-    requirement/category/bucket identities, and bounded Chapel uncertainty.
+    The recognition layer is responsible for producing evidence-backed effects from
+    catalogue data. This function still protects the state from malformed effects: unique
+    completion credit, requirement-type discipline, category/bucket identities, Korean QRM
+    recognition caps, and bounded Chapel uncertainty.
     """
 
     completion = effect.completion
@@ -283,7 +312,12 @@ def apply_recognition(
         raise DegreeRuleError("graduation credits cannot be negative")
 
     for requirement_id in effect.satisfy:
-        _validate_requirement_claim(scenario, requirement_id)
+        requirement = _validate_requirement_claim(scenario, requirement_id)
+        if not isinstance(requirement, (SpecificCourseRequirement, AnyOfRequirement)):
+            raise DegreeRuleError(
+                f"{requirement_id} cannot be satisfied by a boolean shortcut; "
+                "use its structured recognition claim"
+            )
 
     new_categories = set(state.category_claims)
     for requirement_id, category in effect.category_claims:
@@ -301,7 +335,29 @@ def apply_recognition(
             raise DegreeRuleError(f"{requirement_id} is not a credit-bucket requirement")
         if credits < 0:
             raise DegreeRuleError("bucket recognition credits cannot be negative")
+        if credits > completion.credits:
+            raise DegreeRuleError(
+                f"bucket claim {credits} exceeds completion credits {completion.credits}"
+            )
         new_bucket_claims.append((requirement_id, float(credits)))
+
+    korean_claims = list(state.qrm_korean_major_claims)
+    korean_credits = float(effect.qrm_korean_major_credits)
+    if korean_credits < 0:
+        raise DegreeRuleError("Korean QRM major recognition credits cannot be negative")
+    if korean_credits > completion.credits:
+        raise DegreeRuleError("Korean QRM major recognition exceeds completion credits")
+    if korean_credits:
+        if not _effect_claims_qrm_major(scenario, effect):
+            raise DegreeRuleError(
+                "Korean QRM cap usage requires an actual QRM-major recognition claim"
+            )
+        cap = scenario.qrm_korean_credit_cap
+        if state.qrm_korean_major_courses + 1 > cap.max_courses:
+            raise DegreeRuleError("QRM Korean-course major-credit course cap exceeded")
+        if state.qrm_korean_major_credits + korean_credits > cap.max_credits:
+            raise DegreeRuleError("QRM Korean-course major-credit credit cap exceeded")
+        korean_claims.append((completion.completion_id, korean_credits))
 
     chapel = state.chapel
     if effect.chapel_pass:
@@ -324,6 +380,7 @@ def apply_recognition(
         category_claims=frozenset(new_categories),
         bucket_credit_claims=tuple(new_bucket_claims),
         chapel=chapel,
+        qrm_korean_major_claims=tuple(korean_claims),
     )
 
 
@@ -336,7 +393,9 @@ def _common_requirements() -> tuple[Requirement, ...]:
             ("YCA1101", "YCA1102", "YCA1103"),
             3.0,
         ),
-        SpecificCourseRequirement("cc_fwis", "Freshman Writing Intensive Seminar", ("UIC1101",), 3.0),
+        SpecificCourseRequirement(
+            "cc_fwis", "Freshman Writing Intensive Seminar", ("UIC1101",), 3.0
+        ),
         CategoryCountRequirement(
             "cc_lhp",
             "CC Literature-History-Philosophy Series",
@@ -357,15 +416,21 @@ def _common_requirements() -> tuple[Requirement, ...]:
             target_credits=3.0,
             qualification_rule_id="uic_science_literacy_or_rdqm_2026",
         ),
-        SpecificCourseRequirement("cc_critical_reasoning", "Critical Reasoning", ("UIC2101",), 3.0),
+        SpecificCourseRequirement(
+            "cc_critical_reasoning", "Critical Reasoning", ("UIC2101",), 3.0
+        ),
         CreditBucketRequirement(
             "cc_uic_seminar",
             "UIC Seminars",
             target_credits=6.0,
             qualification_rule_id="uic_seminar_2026",
         ),
-        SpecificCourseRequirement("cc_western_civ", "Western Civilization", ("UIC1561",), 3.0),
-        SpecificCourseRequirement("cc_eastern_civ", "Eastern Civilization", ("UIC1581",), 3.0),
+        SpecificCourseRequirement(
+            "cc_western_civ", "Western Civilization", ("UIC1561",), 3.0
+        ),
+        SpecificCourseRequirement(
+            "cc_eastern_civ", "Eastern Civilization", ("UIC1581",), 3.0
+        ),
         SpecificCourseRequirement("cc_rc101", "Yonsei RC101", ("UCR1007",), 1.0),
     )
 
@@ -449,7 +514,7 @@ def qrm_single_major_2026() -> DegreeScenario:
 def qrm_double_major_shell_2026() -> DegreeScenario:
     """QRM first-major rules after choosing a double-major path, identity unresolved.
 
-    This intentionally contains *no* anonymous second-major courses.  Concrete second-major
+    This intentionally contains *no* anonymous second-major courses. Concrete second-major
     scenarios will extend this shell only after their actual institutional rules are built.
     """
 
@@ -469,7 +534,7 @@ def spring_2026_initial_state(scenario: DegreeScenario) -> DegreeState:
     """Build the user's completed first-semester state from concrete known completions.
 
     Spring 2026 consisted of six ordinary 3-credit courses, RC101 (1 credit), and one
-    0.5-credit Chapel pass, for 19.5 unique graduation credits.  The Chapel section/code and
+    0.5-credit Chapel pass, for 19.5 unique graduation credits. The Chapel section/code and
     offline/online status have not yet been established in the migrated evidence, so that
     completion intentionally keeps ``course_code=None`` and offline status unknown.
     """
