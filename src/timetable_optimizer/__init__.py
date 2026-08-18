@@ -115,10 +115,23 @@ from .timetable_utility import (
     evaluate_timetable_utility,
     timetable_preference_quantities,
 )
+from .travel import (
+    CampusDayPath,
+    CampusLocationConflict,
+    CampusPresenceInterval,
+    CampusTransition,
+    TravelPathError,
+    TravelPathFacts,
+    extract_travel_path_facts,
+)
 
 __all__ = [
     "AnyOfRequirement",
     "CHAPEL_2026_CODES",
+    "CampusDayPath",
+    "CampusLocationConflict",
+    "CampusPresenceInterval",
+    "CampusTransition",
     "CatalogIssue",
     "CatalogSnapshot",
     "CategoryCountRequirement",
@@ -190,6 +203,8 @@ __all__ = [
     "TimetableQualityError",
     "TimetableQualityFacts",
     "TimetableUtilityError",
+    "TravelPathError",
+    "TravelPathFacts",
     "UIC_LANGUAGE_CODES",
     "UnresolvedSchedule",
     "UnresolvedUtilityDimension",
@@ -199,6 +214,7 @@ __all__ = [
     "classify_room_segment",
     "evaluate_timetable_utility",
     "extract_timetable_quality",
+    "extract_travel_path_facts",
     "fall2026_preference_profile",
     "ingest_catalog",
     "ingest_history",
