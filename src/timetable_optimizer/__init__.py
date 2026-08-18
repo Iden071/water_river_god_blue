@@ -37,6 +37,7 @@ from .degree import (
     qrm_single_major_2026,
     spring_2026_initial_state,
 )
+from .fall2026_preferences import fall2026_preference_profile
 from .history import (
     HistoricalTerm,
     HistorySnapshot,
@@ -49,6 +50,7 @@ from .preferences import (
     LinearPreferenceRelation,
     LinearPreferenceTerm,
     PreferenceEstimate,
+    PreferenceProfile,
     PreferenceProvenance,
     PreferenceRelationKind,
     PreferenceRuleError,
@@ -134,6 +136,7 @@ __all__ = [
     "PhysicalSectionRecord",
     "PhysicalStatus",
     "PreferenceEstimate",
+    "PreferenceProfile",
     "PreferenceProvenance",
     "PreferenceRelationKind",
     "PreferenceRuleError",
@@ -166,6 +169,7 @@ __all__ = [
     "apply_recognition",
     "classify_room_segment",
     "extract_timetable_quality",
+    "fall2026_preference_profile",
     "ingest_catalog",
     "ingest_history",
     "load_catalog_files",
