@@ -44,6 +44,14 @@ from .history import (
     ingest_history,
     load_history_file,
 )
+from .preferences import (
+    EstimateStatus,
+    PreferenceEstimate,
+    PreferenceProvenance,
+    PreferenceRuleError,
+    PreferenceSourceKind,
+    PreferenceValue,
+)
 from .recognition import (
     CHAPEL_2026_CODES,
     LANGUAGE_EXCLUDED_CODES,
@@ -95,6 +103,7 @@ __all__ = [
     "DegreeScenario",
     "DegreeState",
     "DeliveryKind",
+    "EstimateStatus",
     "HistoricalTerm",
     "HistorySnapshot",
     "HistorySummary",
@@ -112,6 +121,11 @@ __all__ = [
     "ParsedSchedule",
     "PhysicalSectionRecord",
     "PhysicalStatus",
+    "PreferenceEstimate",
+    "PreferenceProvenance",
+    "PreferenceRuleError",
+    "PreferenceSourceKind",
+    "PreferenceValue",
     "QRM_ME_2026_CODES",
     "QualificationDecision",
     "QualificationStatus",
