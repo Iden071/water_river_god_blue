@@ -97,6 +97,14 @@ from .timetable_quality import (
     TimetableQualityFacts,
     extract_timetable_quality,
 )
+from .timetable_utility import (
+    PartialUtilityAssessment,
+    TimetableUtilityError,
+    UnresolvedUtilityDimension,
+    UtilityContribution,
+    evaluate_timetable_utility,
+    timetable_preference_quantities,
+)
 
 __all__ = [
     "AnyOfRequirement",
@@ -133,6 +141,7 @@ __all__ = [
     "NoListedSchedule",
     "ObservationStatus",
     "ParsedSchedule",
+    "PartialUtilityAssessment",
     "PhysicalSectionRecord",
     "PhysicalStatus",
     "PreferenceEstimate",
@@ -164,10 +173,14 @@ __all__ = [
     "SpecificCourseRequirement",
     "TimetableQualityError",
     "TimetableQualityFacts",
+    "TimetableUtilityError",
     "UIC_LANGUAGE_CODES",
     "UnresolvedSchedule",
+    "UnresolvedUtilityDimension",
+    "UtilityContribution",
     "apply_recognition",
     "classify_room_segment",
+    "evaluate_timetable_utility",
     "extract_timetable_quality",
     "fall2026_preference_profile",
     "ingest_catalog",
@@ -182,4 +195,5 @@ __all__ = [
     "section_from_raw",
     "segment_blocks",
     "spring_2026_initial_state",
+    "timetable_preference_quantities",
 ]
