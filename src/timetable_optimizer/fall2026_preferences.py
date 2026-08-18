@@ -108,6 +108,11 @@ def fall2026_preference_profile() -> PreferenceProfile:
             "21:50 finish",
         ),
         PreferenceValue(
+            "late_finish_period_14",
+            PreferenceEstimate.unmeasured(),
+            label="22:50 finish",
+        ),
+        PreferenceValue(
             "four_period_hole",
             PreferenceEstimate.heuristic(-10.0),
             _derived(
