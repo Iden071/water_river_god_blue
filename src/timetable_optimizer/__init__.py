@@ -67,6 +67,15 @@ from .degree_remainder import (
     degree_remainder,
 )
 from .fall2026_preferences import fall2026_preference_profile
+from .future_opportunities import (
+    FutureOffering,
+    FutureOfferingEvidence,
+    FutureOfferingEvidenceKind,
+    FutureOpportunityError,
+    FutureOpportunityScenario,
+    FutureTermOpportunitySet,
+    OpportunitySetStatus,
+)
 from .future_scenarios import (
     CampusAccessKind,
     CampusAccessScenario,
@@ -208,7 +217,13 @@ __all__ = [
     "FreshmanQuotaObservation",
     "FutureCatalogueBasis",
     "FutureCatalogueBasisKind",
+    "FutureOffering",
+    "FutureOfferingEvidence",
+    "FutureOfferingEvidenceKind",
+    "FutureOpportunityError",
+    "FutureOpportunityScenario",
     "FutureScenarioError",
+    "FutureTermOpportunitySet",
     "FutureTermScenario",
     "FutureTimelineScenario",
     "HistoricalMileageObservation",
@@ -230,6 +245,7 @@ __all__ = [
     "ObservationStatus",
     "ObtainabilityEstimate",
     "ObtainabilityStatus",
+    "OpportunitySetStatus",
     "ParsedSchedule",
     "PartialUtilityAssessment",
     "PhysicalSectionRecord",
