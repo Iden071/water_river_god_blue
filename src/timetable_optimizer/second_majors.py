@@ -20,7 +20,6 @@ from .degree import (
     CreditBucketRequirement,
     DegreeRuleError,
     DegreeScenario,
-    Requirement,
     SecondMajorSpec,
     SecondMajorStatus,
     SpecificCourseRequirement,
@@ -43,7 +42,7 @@ APPLIED_STATISTICS_QRM_TEMP_CROSS_RECOGNITION_2026 = {
     "QRM2004": "STA2105",
 }
 
-PHYSICS_REQUIRED_2026: tuple[SpecificCourseRequirement, ...] = (
+PHYSICS_REQUIRED_2026 = (
     SpecificCourseRequirement("second_physics_lab_a1", "Physics Lab (A-1)", ("PHY2105",), 3.0, source=PHYSICS_REQUIREMENT_SOURCE),
     SpecificCourseRequirement("second_physics_quantum_1", "Quantum Mechanics (1)", ("PHY3101",), 3.0, source=PHYSICS_REQUIREMENT_SOURCE),
     SpecificCourseRequirement("second_physics_quantum_2", "Quantum Mechanics (2)", ("PHY3102",), 3.0, source=PHYSICS_REQUIREMENT_SOURCE),
@@ -57,7 +56,7 @@ PHYSICS_REQUIRED_2026: tuple[SpecificCourseRequirement, ...] = (
 PHYSICS_ELECTIVE_2026 = CreditBucketRequirement("second_physics_electives", "Physics Major Electives", 9.0, "physics_major_elective_2026", source=PHYSICS_REQUIREMENT_SOURCE)
 PHYSICS_ELECTIVE_2026_CODES = frozenset({"PHY2103", "PHY2104", "PHY2106", "PHY3105", "PHY3108", "PHY3109", "PHY4101", "PHY4102", "PHY4107", "PHY4109", "PHY4113", "PHY4115", "PHY4116", "PHY4117", "PHY4205", "PHY4206", "PHY4207", "PHY4208"})
 
-EEE_REQUIRED_2026: tuple[SpecificCourseRequirement, ...] = (
+EEE_REQUIRED_2026 = (
     SpecificCourseRequirement("second_eee_data_structures", "Data Structures", ("EEE2020",), 3.0, source=EEE_REQUIREMENT_SOURCE),
     SpecificCourseRequirement("second_eee_electromagnetics_1", "Electromagnetics (1)", ("EEE2030",), 3.0, source=EEE_REQUIREMENT_SOURCE),
     SpecificCourseRequirement("second_eee_basic_circuit_theory", "Basic Circuit Theory", ("EEE2010",), 3.0, source=EEE_REQUIREMENT_SOURCE),
