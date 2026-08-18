@@ -1,5 +1,14 @@
 """Core timetable-optimizer primitives introduced during the Stage 4 rebuild."""
 
+from .candidate_assessment import (
+    CandidateAssessment,
+    CandidateAssessmentError,
+    CandidateConstraintIssue,
+    CandidateDegreeTransition,
+    CandidateLoadFacts,
+    ConstraintEvidenceStatus,
+    assess_candidate,
+)
 from .catalog import (
     CatalogIssue,
     CatalogSnapshot,
@@ -146,12 +155,18 @@ __all__ = [
     "CampusLocationConflict",
     "CampusPresenceInterval",
     "CampusTransition",
+    "CandidateAssessment",
+    "CandidateAssessmentError",
+    "CandidateConstraintIssue",
+    "CandidateDegreeTransition",
+    "CandidateLoadFacts",
     "CatalogIssue",
     "CatalogSnapshot",
     "CategoryCountRequirement",
     "ChapelProgress",
     "ChapelRequirement",
     "Completion",
+    "ConstraintEvidenceStatus",
     "CoursePreferenceError",
     "CourseRecognitionEvidence",
     "CreditBucketRequirement",
@@ -232,6 +247,7 @@ __all__ = [
     "UtilityContribution",
     "YearQuotaGateStatus",
     "apply_recognition",
+    "assess_candidate",
     "assess_freshman_registration",
     "assess_section_course_preferences",
     "classify_room_segment",
