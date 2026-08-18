@@ -4,6 +4,11 @@ This module represents what is known about a subjective preference before any
 whole-plan utility function consumes it. It deliberately does not choose a
 master score, aggregate second-major scenarios, or convert missing information
 into a numerical default.
+
+Preference evidence is not required to arrive as a scalar.  A user may know
+that one state is worse than another, or that two state differences are equal,
+without having supplied either state with an absolute number.  Linear relations
+preserve those statements directly instead of forcing an invented point value.
 """
 
 from __future__ import annotations
@@ -38,9 +43,19 @@ class EstimateStatus(str, Enum):
     UNMEASURED = "unmeasured"
 
 
+class PreferenceRelationKind(str, Enum):
+    """Comparison operator for a linear relation among preference dimensions."""
+
+    EQUAL = "equal"
+    LESS_THAN = "less_than"
+    LESS_OR_EQUAL = "less_or_equal"
+    GREATER_THAN = "greater_than"
+    GREATER_OR_EQUAL = "greater_or_equal"
+
+
 @dataclass(frozen=True)
 class PreferenceProvenance:
-    """Trace a subjective number to user input or a transparent derivation."""
+    """Trace a subjective statement to user input or a transparent derivation."""
 
     source_kind: PreferenceSourceKind
     source_id: str
@@ -168,4 +183,56 @@ class PreferenceValue:
         if self.estimate.status is not EstimateStatus.UNMEASURED and self.provenance is None:
             raise PreferenceRuleError(
                 "every numerical preference estimate requires explicit provenance"
+            )
+
+
+@dataclass(frozen=True)
+class LinearPreferenceTerm:
+    """One coefficient in a linear preference relation."""
+
+    dimension_id: str
+    coefficient: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not self.dimension_id.strip():
+            raise PreferenceRuleError(
+                "linear preference term requires a nonblank dimension_id"
+            )
+        if not isfinite(self.coefficient) or self.coefficient == 0:
+            raise PreferenceRuleError(
+                "linear preference term coefficient must be finite and nonzero"
+            )
+
+
+@dataclass(frozen=True)
+class LinearPreferenceRelation:
+    """Preserve a comparison without manufacturing absolute weights.
+
+    The relation is interpreted as::
+
+        sum(term.coefficient * utility(term.dimension_id))  relation  rhs
+
+    For example, if larger utility is better, "missing dinner is worse than
+    missing lunch" can be stored as ``dinner - lunch < 0``.  A later solver may
+    combine such evidence with anchors or bounds, but this layer does not do so.
+    """
+
+    terms: tuple[LinearPreferenceTerm, ...]
+    relation: PreferenceRelationKind
+    rhs: float
+    provenance: PreferenceProvenance
+    label: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.terms:
+            raise PreferenceRuleError(
+                "linear preference relation requires at least one term"
+            )
+        if not isfinite(self.rhs):
+            raise PreferenceRuleError("linear preference relation rhs must be finite")
+
+        dimension_ids = [term.dimension_id for term in self.terms]
+        if len(dimension_ids) != len(set(dimension_ids)):
+            raise PreferenceRuleError(
+                "linear preference relation must combine duplicate dimensions explicitly"
             )
