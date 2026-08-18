@@ -101,11 +101,20 @@ class TravelPathFacts:
     days: tuple[CampusDayPath, ...]
 
     @property
-    def cross_campus_transitions(self) -> tuple[CampusTransition, ...]:
+    def transitions(self) -> tuple[CampusTransition, ...]:
+        """Aggregate all required campus-to-campus moves across the week."""
+
         return tuple(
             transition
             for day in self.days
             for transition in day.transitions
+        )
+
+    @property
+    def cross_campus_transitions(self) -> tuple[CampusTransition, ...]:
+        return tuple(
+            transition
+            for transition in self.transitions
             if transition.from_campus != transition.to_campus
         )
 
