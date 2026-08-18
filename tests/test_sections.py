@@ -7,7 +7,10 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from timetable_optimizer.sections import (  # noqa: E402
     DeliveryKind,
-    SegmentAlignmentError,
+    NoListedSchedule,
+    ParsedSchedule,
+    Section,
+    UnresolvedSchedule,
     section_from_raw,
     segment_blocks,
 )
@@ -52,9 +55,10 @@ class SegmentParserTests(unittest.TestCase):
         self.assertNotIn((3, 12), blocks)
 
 
-class SectionMaskTests(unittest.TestCase):
+class SectionScheduleTests(unittest.TestCase):
     def test_in_person_occupies_all_three_masks(self):
         sec = section_from_raw(row())
+        self.assertIsInstance(sec.schedule, ParsedSchedule)
         self.assertTrue(sec.conflict_mask)
         self.assertEqual(sec.conflict_mask, sec.presence_mask)
         self.assertEqual(sec.conflict_mask, sec.fixed_mask)
@@ -72,46 +76,91 @@ class SectionMaskTests(unittest.TestCase):
             sec.delivery_kinds,
             (DeliveryKind.LIVE_ONLINE, DeliveryKind.VIDEO_BLOCK),
         )
-        # Both blocks prevent overlapping registration.
         self.assertEqual(sec.conflict_mask.bit_count(), 3)
-        # Neither requires campus presence.
         self.assertEqual(sec.presence_mask, 0)
-        # Only the live Monday block pins personal time.
         self.assertEqual(sec.fixed_mask.bit_count(), 2)
 
-    def test_freely_overlappable_video_occupies_no_mask(self):
+    def test_freely_overlappable_video_occupies_no_mask_but_is_still_parsed(self):
         sec = section_from_raw(
             row(lctreTimeNm="목4", lecrmNm="동영상콘텐츠", subjtClNm="비대면")
         )
+        self.assertIsInstance(sec.schedule, ParsedSchedule)
         self.assertEqual(sec.delivery_kinds, (DeliveryKind.VIDEO_FREE,))
         self.assertEqual(sec.conflict_mask, 0)
         self.assertEqual(sec.presence_mask, 0)
         self.assertEqual(sec.fixed_mask, 0)
 
-    def test_no_time_section_is_preserved(self):
+    def test_no_listed_time_is_not_a_zero_mask_schedule(self):
         sec = section_from_raw(row(lctreTimeNm="", lecrmNm=""))
-        self.assertEqual(sec.conflict_mask, 0)
-        self.assertEqual(sec.presence_mask, 0)
-        self.assertEqual(sec.fixed_mask, 0)
-        self.assertEqual(sec.delivery_kinds, ())
+        self.assertIsInstance(sec.schedule, NoListedSchedule)
+        self.assertIsNone(sec.conflict_mask)
+        self.assertIsNone(sec.presence_mask)
+        self.assertIsNone(sec.fixed_mask)
+        self.assertIsNone(sec.delivery_kinds)
 
-    def test_both_campuses_are_accepted(self):
-        sec = section_from_raw(row(campsDivNm="신촌"))
-        self.assertEqual(sec.campus, "신촌")
+    def test_segment_mismatch_becomes_unresolved_not_guessed(self):
+        sec = section_from_raw(row(lctreTimeNm="월3,4/수3", lecrmNm="실시간온라인"))
+        self.assertIsInstance(sec.schedule, UnresolvedSchedule)
+        self.assertIsNone(sec.conflict_mask)
+        self.assertIn("mismatch", sec.schedule.reason)
 
-    def test_segment_mismatch_is_not_guessed(self):
-        with self.assertRaises(SegmentAlignmentError):
-            section_from_raw(
-                row(lctreTimeNm="월3,4/수3", lecrmNm="실시간온라인")
-            )
+    def test_blank_delivery_metadata_becomes_unresolved_not_in_person(self):
+        sec = section_from_raw(row(lctreTimeNm="월3,4", lecrmNm=""))
+        self.assertIsInstance(sec.schedule, UnresolvedSchedule)
+        self.assertIsNone(sec.presence_mask)
 
-    def test_blank_delivery_metadata_is_not_assumed_in_person(self):
-        with self.assertRaises(SegmentAlignmentError):
-            section_from_raw(row(lctreTimeNm="월3,4", lecrmNm=""))
+    def test_nonblank_but_unparseable_time_is_unresolved_not_no_listed_schedule(self):
+        sec = section_from_raw(row(lctreTimeNm="미정", lecrmNm="강의실A"))
+        self.assertIsInstance(sec.schedule, UnresolvedSchedule)
 
-    def test_cancellation_field_is_preserved(self):
-        sec = section_from_raw(row(rmvlcYn="1", rmvlcYnNm="폐강"))
-        self.assertTrue(sec.cancelled)
+    def test_mask_subset_invariant_holds_for_all_delivery_kinds(self):
+        examples = [
+            row(lecrmNm="강의실A"),
+            row(lecrmNm="실시간온라인"),
+            row(lecrmNm="동영상(중복수강불가)"),
+            row(lecrmNm="동영상콘텐츠"),
+        ]
+        for raw in examples:
+            with self.subTest(room=raw["lecrmNm"]):
+                sec = section_from_raw(raw)
+                self.assertIsInstance(sec.schedule, ParsedSchedule)
+                self.assertEqual(sec.presence_mask & ~sec.fixed_mask, 0)
+                self.assertEqual(sec.fixed_mask & ~sec.conflict_mask, 0)
+
+    def test_both_campuses_use_same_section_representation(self):
+        international = section_from_raw(row(campsDivNm="국제"))
+        sinchon = section_from_raw(row(campsDivNm="신촌"))
+        self.assertIsInstance(international, Section)
+        self.assertIsInstance(sinchon, Section)
+        self.assertEqual(type(international.schedule), type(sinchon.schedule))
+
+
+class SourceFactTests(unittest.TestCase):
+    def test_explicit_cancellation_true_and_false_are_preserved(self):
+        self.assertTrue(section_from_raw(row(rmvlcYn="1", rmvlcYnNm="폐강")).cancelled)
+        self.assertFalse(section_from_raw(row(rmvlcYn="0", rmvlcYnNm=" ")).cancelled)
+
+    def test_missing_cancellation_evidence_is_unknown(self):
+        raw = row()
+        raw.pop("rmvlcYn")
+        raw.pop("rmvlcYnNm")
+        self.assertIsNone(section_from_raw(raw).cancelled)
+
+    def test_missing_credit_is_unknown_not_zero(self):
+        self.assertIsNone(section_from_raw(row(cdt=None)).credits)
+
+    def test_canonical_section_contains_no_downstream_model_decisions(self):
+        forbidden = {
+            "eligible",
+            "fulfills_ME",
+            "fulfills_MR",
+            "professor_utility",
+            "difficulty",
+            "future_probability",
+            "score",
+            "should_take",
+        }
+        self.assertFalse(forbidden & set(Section.__dataclass_fields__))
 
 
 if __name__ == "__main__":
