@@ -11,6 +11,7 @@ from timetable_optimizer.preferences import (  # noqa: E402
     LinearPreferenceRelation,
     LinearPreferenceTerm,
     PreferenceEstimate,
+    PreferenceProfile,
     PreferenceProvenance,
     PreferenceRelationKind,
     PreferenceRuleError,
@@ -160,6 +161,36 @@ class PreferenceRelationTests(unittest.TestCase):
                 rhs=math.nan,
                 provenance=self.user_source,
             )
+
+
+class PreferenceProfileTests(unittest.TestCase):
+    def test_profile_preserves_unmeasured_dimensions(self):
+        profile = PreferenceProfile(
+            profile_id="test",
+            values=(
+                PreferenceValue(
+                    dimension_id="workload",
+                    estimate=PreferenceEstimate.unmeasured(),
+                ),
+            ),
+        )
+        self.assertEqual(profile.unmeasured_dimensions, frozenset({"workload"}))
+        self.assertEqual(profile.value("workload").estimate.status, EstimateStatus.UNMEASURED)
+
+    def test_profile_rejects_duplicate_scalar_dimensions(self):
+        with self.assertRaises(PreferenceRuleError):
+            PreferenceProfile(
+                profile_id="test",
+                values=(
+                    PreferenceValue("workload", PreferenceEstimate.unmeasured()),
+                    PreferenceValue("workload", PreferenceEstimate.unmeasured()),
+                ),
+            )
+
+    def test_profile_lookup_rejects_missing_dimension(self):
+        profile = PreferenceProfile(profile_id="test")
+        with self.assertRaises(PreferenceRuleError):
+            profile.value("missing")
 
 
 if __name__ == "__main__":
