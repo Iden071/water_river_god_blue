@@ -5,12 +5,15 @@ This module is the explicit I/O/reconciliation boundary above the pure parser in
 
 The important distinction is:
 
-    source observation  !=  physical section  !=  program listing overlay
+    source observation  !=  physical section  !=  listing view / program overlay
 
 Every source row is preserved.  Multiple observations of the same physical section are
-reconciled only when they are exactly compatible; contradictory duplicates remain explicit
-and unresolved.  Program-specific listing metadata (currently QRM's own category view) is
-kept separately and cannot make an otherwise valid physical section disappear.
+reconciled only on physical facts.  Department, catalogue category, and year label are
+retained as the source row's listing view because the historical data proves that those can
+differ for the same physical section in the same term.
+
+Additional program-specific listing metadata (currently QRM's own category view) is kept as
+its own overlay and cannot make an otherwise valid physical section disappear.
 """
 
 from __future__ import annotations
@@ -74,6 +77,15 @@ class CatalogIssue:
 
 
 @dataclass(frozen=True)
+class SourceListingView:
+    """How one portal source row lists a section, separate from physical facts."""
+
+    department: str
+    year_label: str
+    catalogue_category: str
+
+
+@dataclass(frozen=True)
 class SectionObservation:
     """One raw catalogue row plus the canonical facts derivable from it."""
 
@@ -82,6 +94,7 @@ class SectionObservation:
     course_code: str
     status: ObservationStatus
     section: Section | None
+    listing_view: SourceListingView
     raw: Mapping[str, Any]
     issues: tuple[CatalogIssue, ...] = ()
 
@@ -104,7 +117,7 @@ class PhysicalSectionRecord:
 
 @dataclass(frozen=True)
 class ListingObservation:
-    """Program/department-specific view of a section, separate from physical facts."""
+    """An additional program-specific listing view, separate from physical facts."""
 
     source: SourceRef
     program: str
@@ -146,6 +159,13 @@ class CatalogSnapshot:
         hits = [record for record in self.physical_sections if record.section_id == section_id]
         return hits[0] if len(hits) == 1 else None
 
+    def source_views_for(self, section_id: str) -> tuple[SourceListingView, ...]:
+        return tuple(
+            observation.listing_view
+            for observation in self.observations
+            if observation.section_id == section_id
+        )
+
     def listings_for(self, section_id: str, *, program: str | None = None) -> tuple[ListingObservation, ...]:
         return tuple(
             listing
@@ -165,6 +185,15 @@ def _copy_raw(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Detach retained provenance from a caller's later mutation of its input mapping."""
 
     return dict(raw)
+
+
+
+def _source_listing_view(raw: Mapping[str, Any]) -> SourceListingView:
+    return SourceListingView(
+        department=str(raw.get("estblDeprtNm") or ""),
+        year_label=str(raw.get("hy") or ""),
+        catalogue_category=str(raw.get("subsrtDivNm") or ""),
+    )
 
 
 
@@ -226,7 +255,7 @@ def _reconcile(observations: Sequence[SectionObservation]) -> tuple[PhysicalSect
 
         issue = CatalogIssue(
             IssueCode.DUPLICATE_SECTION_CONFLICT,
-            "multiple observations for this section are not exactly compatible",
+            "multiple observations for this section disagree on physical-section facts",
             section_id=section_id,
         )
         physical.append(
@@ -362,6 +391,7 @@ def ingest_catalog(
                 course_code=course_code,
                 status=status,
                 section=section,
+                listing_view=_source_listing_view(raw),
                 raw=_copy_raw(raw),
                 issues=tuple(issues),
             )
