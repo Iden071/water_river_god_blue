@@ -41,7 +41,7 @@ class DegreeScenarioStructureTests(unittest.TestCase):
         self.assertEqual(chapel.passes_required, 4)
         self.assertEqual(chapel.credits_per_pass, 0.5)
         # The ordinary graduation sources establish four passes but do not establish
-        # the separate offline-pass threshold.  Keep that threshold unresolved here.
+        # the separate offline-pass threshold. Keep that threshold unresolved here.
         self.assertIsNone(chapel.offline_passes_required)
 
     def test_mr5_is_an_any_of_requirement_not_a_flattened_course(self):
@@ -159,7 +159,8 @@ class DegreeTransitionInvariantTests(unittest.TestCase):
             completion_id="future-example",
             course_code="EXAMPLE1000",
             credits=3.0,
-            satisfy=("cc_western_civ", "cc_language"),
+            satisfy=("cc_western_civ",),
+            bucket_credit_claims=(("cc_language", 3.0),),
         )
         after = apply_recognition(self.state, self.scenario, effect)
         self.assertEqual(after.earned_credits - self.state.earned_credits, 3.0)
