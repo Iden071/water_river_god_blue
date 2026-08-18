@@ -255,6 +255,19 @@ class PreferenceProfile:
                 "preference profile cannot contain duplicate scalar dimensions"
             )
 
+        declared = set(ids)
+        referenced = {
+            term.dimension_id
+            for relation in self.relations
+            for term in relation.terms
+        }
+        undeclared = referenced - declared
+        if undeclared:
+            raise PreferenceRuleError(
+                "preference relations reference undeclared dimensions: "
+                + ", ".join(sorted(undeclared))
+            )
+
     def value(self, dimension_id: str) -> PreferenceValue:
         hits = [value for value in self.values if value.dimension_id == dimension_id]
         if len(hits) != 1:
