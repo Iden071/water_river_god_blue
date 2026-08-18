@@ -3,20 +3,28 @@
 This script does not generate or mutate repository data.  It exists so CI and developers can
 see how many historical observations are parsed, have no listed schedule, or retain an
 unresolved schedule under the same canonical parser used for current catalogue data.
+
+It also diagnoses repeated section ids whose source observations disagree.  Those diagnostics
+are intentionally observational: they do not choose which fields are intrinsic to a physical
+section or silently reconcile conflicts.
 """
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
+from dataclasses import fields
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from timetable_optimizer.catalog import ReconciliationKind  # noqa: E402
 from timetable_optimizer.history import load_history_file  # noqa: E402
 from timetable_optimizer.sections import (  # noqa: E402
     NoListedSchedule,
     ParsedSchedule,
+    Section,
     UnresolvedSchedule,
 )
 
@@ -34,6 +42,45 @@ def counts_for_term(catalog):
         elif isinstance(section.schedule, UnresolvedSchedule):
             unresolved_schedule += 1
     return parsed, no_time, unresolved_schedule, campuses
+
+
+def conflict_diagnostics(history):
+    field_counts = Counter()
+    pattern_counts = Counter()
+    pattern_samples = defaultdict(list)
+    conflicts_with_unparsed_observation = 0
+
+    section_field_names = [field.name for field in fields(Section)]
+
+    for historical_term in history.terms:
+        catalog = historical_term.catalog
+        observations_by_id = defaultdict(list)
+        for observation in catalog.observations:
+            if observation.section_id:
+                observations_by_id[observation.section_id].append(observation)
+
+        for record in catalog.physical_sections:
+            if record.reconciliation is not ReconciliationKind.CONFLICT:
+                continue
+            group = observations_by_id[record.section_id]
+            sections = [observation.section for observation in group]
+            if any(section is None for section in sections):
+                conflicts_with_unparsed_observation += 1
+                pattern = ("<unparsed observation>",)
+            else:
+                different = []
+                for name in section_field_names:
+                    values = [getattr(section, name) for section in sections]
+                    if any(value != values[0] for value in values[1:]):
+                        different.append(name)
+                        field_counts[name] += 1
+                pattern = tuple(different) or ("<no Section-field difference>",)
+
+            pattern_counts[pattern] += 1
+            if len(pattern_samples[pattern]) < 4:
+                pattern_samples[pattern].append(f"{historical_term.term}:{record.section_id}")
+
+    return field_counts, pattern_counts, pattern_samples, conflicts_with_unparsed_observation
 
 
 def main() -> None:
@@ -85,6 +132,20 @@ def main() -> None:
         print(
             "delivery_segments: "
             + ", ".join(f"{kind}={count}" for kind, count in total.delivery_counts)
+        )
+
+    field_counts, patterns, samples, unparsed = conflict_diagnostics(history)
+    print()
+    print("DUPLICATE-SECTION CONFLICT DIAGNOSTICS")
+    print(f"conflicts containing an unparsed observation: {unparsed}")
+    print(
+        "fields differing across conflict groups: "
+        + (", ".join(f"{name}={count}" for name, count in field_counts.most_common()) or "none")
+    )
+    for pattern, count in patterns.most_common(12):
+        print(
+            f"  {count:4d}  {', '.join(pattern)}"
+            f"   samples={'; '.join(samples[pattern])}"
         )
 
 
