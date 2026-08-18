@@ -279,6 +279,46 @@ def _validate_requirement_claim(scenario: DegreeScenario, requirement_id: str) -
     return scenario.requirement(requirement_id)
 
 
+def requirement_major_owner(scenario: DegreeScenario, requirement_id: str) -> str | None:
+    """Return the major whose credit this requirement claims, if any.
+
+    Common-curriculum and non-major requirements return ``None``.  QRM-major requirements
+    are identified by their verified ``counts_toward_qrm_major`` semantics.  Concrete
+    second-major requirements are identified by ownership in ``SecondMajorSpec`` rather
+    than by a fragile requirement-id prefix.
+    """
+
+    requirement = scenario.requirement(requirement_id)
+    qrm_owned = bool(getattr(requirement, "counts_toward_qrm_major", False))
+    second_ids = {
+        req.requirement_id for req in scenario.second_major.requirements
+    }
+    second_owned = requirement_id in second_ids
+    if qrm_owned and second_owned:
+        raise DegreeRuleError(
+            f"requirement {requirement_id!r} is owned by both QRM and the second major"
+        )
+    if qrm_owned:
+        return "qrm"
+    if second_owned:
+        return "second_major"
+    return None
+
+
+def _effect_major_owners(
+    scenario: DegreeScenario,
+    effect: RecognitionEffect,
+) -> frozenset[str]:
+    requirement_ids = set(effect.satisfy)
+    requirement_ids.update(requirement_id for requirement_id, _ in effect.category_claims)
+    requirement_ids.update(requirement_id for requirement_id, _ in effect.bucket_credit_claims)
+    return frozenset(
+        owner
+        for requirement_id in requirement_ids
+        if (owner := requirement_major_owner(scenario, requirement_id)) is not None
+    )
+
+
 def _effect_claims_qrm_major(scenario: DegreeScenario, effect: RecognitionEffect) -> bool:
     for requirement_id in effect.satisfy:
         requirement = scenario.requirement(requirement_id)
@@ -300,8 +340,8 @@ def apply_recognition(
 
     The recognition layer is responsible for producing evidence-backed effects from
     catalogue data. This function still protects the state from malformed effects: unique
-    completion credit, requirement-type discipline, category/bucket identities, Korean QRM
-    recognition caps, and bounded Chapel uncertainty.
+    completion credit, requirement-type discipline, exclusive cross-major assignment,
+    category/bucket identities, Korean QRM recognition caps, and bounded Chapel uncertainty.
     """
 
     completion = effect.completion
@@ -311,6 +351,12 @@ def apply_recognition(
         raise DegreeRuleError(f"completion already applied: {completion.completion_id}")
     if completion.credits < 0:
         raise DegreeRuleError("graduation credits cannot be negative")
+
+    major_owners = _effect_major_owners(scenario, effect)
+    if scenario.exclusive_major_assignment and len(major_owners) > 1:
+        raise DegreeRuleError(
+            "one completion cannot be assigned to more than one major in this scenario"
+        )
 
     for requirement_id in effect.satisfy:
         requirement = _validate_requirement_claim(scenario, requirement_id)
