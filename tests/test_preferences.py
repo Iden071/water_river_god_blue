@@ -8,8 +8,11 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from timetable_optimizer.preferences import (  # noqa: E402
     EstimateStatus,
+    LinearPreferenceRelation,
+    LinearPreferenceTerm,
     PreferenceEstimate,
     PreferenceProvenance,
+    PreferenceRelationKind,
     PreferenceRuleError,
     PreferenceSourceKind,
     PreferenceValue,
@@ -91,6 +94,72 @@ class PreferenceEstimateTests(unittest.TestCase):
     def test_unmeasured_cannot_hide_numeric_payload(self):
         with self.assertRaises(PreferenceRuleError):
             PreferenceEstimate(EstimateStatus.UNMEASURED, point=0.0)
+
+
+class PreferenceRelationTests(unittest.TestCase):
+    def setUp(self):
+        self.user_source = PreferenceProvenance(
+            PreferenceSourceKind.USER_INPUT,
+            source_id="comparison-001",
+            description="User compared missing dinner against missing lunch.",
+        )
+
+    def test_qualitative_relation_does_not_require_absolute_weights(self):
+        relation = LinearPreferenceRelation(
+            terms=(
+                LinearPreferenceTerm("missing_dinner", 1.0),
+                LinearPreferenceTerm("missing_lunch", -1.0),
+            ),
+            relation=PreferenceRelationKind.LESS_THAN,
+            rhs=0.0,
+            provenance=self.user_source,
+        )
+        self.assertEqual(relation.relation, PreferenceRelationKind.LESS_THAN)
+        self.assertEqual(len(relation.terms), 2)
+
+    def test_linear_relation_can_store_ratio_or_difference_claim(self):
+        relation = LinearPreferenceRelation(
+            terms=(
+                LinearPreferenceTerm("monday_trip", 1.0),
+                LinearPreferenceTerm("friday_trip", -0.75),
+            ),
+            relation=PreferenceRelationKind.EQUAL,
+            rhs=0.0,
+            provenance=self.user_source,
+        )
+        self.assertEqual(relation.rhs, 0.0)
+
+    def test_relation_rejects_empty_terms(self):
+        with self.assertRaises(PreferenceRuleError):
+            LinearPreferenceRelation(
+                terms=(),
+                relation=PreferenceRelationKind.EQUAL,
+                rhs=0.0,
+                provenance=self.user_source,
+            )
+
+    def test_relation_rejects_duplicate_dimensions(self):
+        with self.assertRaises(PreferenceRuleError):
+            LinearPreferenceRelation(
+                terms=(
+                    LinearPreferenceTerm("rest", 1.0),
+                    LinearPreferenceTerm("rest", -1.0),
+                ),
+                relation=PreferenceRelationKind.EQUAL,
+                rhs=0.0,
+                provenance=self.user_source,
+            )
+
+    def test_relation_rejects_nonfinite_rhs_or_coefficient(self):
+        with self.assertRaises(PreferenceRuleError):
+            LinearPreferenceTerm("rest", math.inf)
+        with self.assertRaises(PreferenceRuleError):
+            LinearPreferenceRelation(
+                terms=(LinearPreferenceTerm("rest"),),
+                relation=PreferenceRelationKind.EQUAL,
+                rhs=math.nan,
+                provenance=self.user_source,
+            )
 
 
 if __name__ == "__main__":
