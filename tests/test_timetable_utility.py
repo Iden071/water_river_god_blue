@@ -49,6 +49,8 @@ class TimetablePreferenceQuantityTests(unittest.TestCase):
         self.assertEqual(quantities["four_fixed_period_run"], 1.0)
         self.assertEqual(quantities["late_finish_period_9"], 1.0)
         self.assertEqual(quantities["rest_fixed_free_weekday"], 3.0)
+        self.assertEqual(quantities["weekend_attached_presence_free_day"], 1.0)
+        self.assertEqual(quantities["weekend_run_curvature"], 1.0)
         self.assertNotIn("dead_gap_shape", quantities)
 
     def test_longer_runs_and_non_four_gaps_do_not_use_legacy_curves(self):
@@ -78,11 +80,13 @@ class PartialTimetableUtilityTests(unittest.TestCase):
 
         # Exact measured pieces: 09:00 -10, four-period run -8,
         # 17:50 finish -1. Three fixed-free weekdays contribute [18,24].
-        self.assertEqual(assessment.measured_lower, -1.0)
-        self.assertEqual(assessment.measured_upper, 5.0)
+        # The first weekend-attached presence-free day contributes [12,14].
+        self.assertEqual(assessment.measured_lower, 11.0)
+        self.assertEqual(assessment.measured_upper, 19.0)
 
-        # Weekend attachment and Friday-event dimensions remain active but
-        # incomplete, so the interval above is not a whole-timetable bound.
+        # The second weekend-attached day depends on the unresolved curvature,
+        # and Friday-event value is also unmeasured. Therefore the interval
+        # above is not a whole-timetable bound.
         self.assertIsNone(assessment.complete_bounds)
         self.assertTrue(assessment.has_unresolved)
         self.assertIn(
