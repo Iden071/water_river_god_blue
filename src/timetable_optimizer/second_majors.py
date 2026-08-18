@@ -60,6 +60,15 @@ COMPUTING_SOURCE = (
     "verified 2026-08-18"
 )
 
+# Applied Statistics facts that are established by the current public notice even though
+# the category-by-category campus-double-major workbook is not yet machine-ingested.
+APPLIED_STATISTICS_DOUBLE_MAJOR_CREDITS_2026 = 36.0
+APPLIED_STATISTICS_QRM_TEMP_CROSS_RECOGNITION_2026 = {
+    "QRM3004": "STA3125",  # Regression Analysis -> Regression Analysis
+    "QRM3005": "STA3126",  # Mathematical Statistics 1 -> Mathematical Statistics (1)
+    "QRM2004": "STA2105",  # Statistical Analytic Methods -> Statistical Method
+}
+
 
 # Current Physics required-major courses published by the department. The 2024+ rule for a
 # student whose first major is elsewhere is 27 required-major credits + 9 elective-major
@@ -143,169 +152,42 @@ PHYSICS_ELECTIVE_2026 = CreditBucketRequirement(
 # intentionally not promoted to hard prerequisites here.
 PHYSICS_ELECTIVE_2026_CODES = frozenset(
     {
-        "PHY2103",
-        "PHY2104",
-        "PHY2106",
-        "PHY3105",
-        "PHY3108",
-        "PHY3109",
-        "PHY4101",
-        "PHY4102",
-        "PHY4107",
-        "PHY4109",
-        "PHY4113",
-        "PHY4115",
-        "PHY4116",
-        "PHY4117",
-        "PHY4205",
-        "PHY4206",
-        "PHY4207",
-        "PHY4208",
+        "PHY2103", "PHY2104", "PHY2106", "PHY3105", "PHY3108", "PHY3109",
+        "PHY4101", "PHY4102", "PHY4107", "PHY4109", "PHY4113", "PHY4115",
+        "PHY4116", "PHY4117", "PHY4205", "PHY4206", "PHY4207", "PHY4208",
     }
 )
 
-
 # Electrical & Electronic Engineering --------------------------------------------
-# The current department table labels its active rule ``2018~`` and totals exactly 36
-# credits: one 3-credit major-foundation course, 24 credits of fixed required courses, one
-# 3-credit experiment from a designated list, and 6 credits from the published major-
-# elective catalogue. EEE2113 is shown in the foundation block with "no completion
-# obligation" and is therefore deliberately not encoded as a requirement.
 EEE_REQUIRED_2026: tuple[SpecificCourseRequirement, ...] = (
-    SpecificCourseRequirement(
-        "second_eee_data_structures",
-        "Data Structures",
-        ("EEE2020",),
-        3.0,
-        source=EEE_REQUIREMENT_SOURCE,
-    ),
-    SpecificCourseRequirement(
-        "second_eee_electromagnetics_1",
-        "Electromagnetics (1)",
-        ("EEE2030",),
-        3.0,
-        source=EEE_REQUIREMENT_SOURCE,
-    ),
-    SpecificCourseRequirement(
-        "second_eee_basic_circuit_theory",
-        "Basic Circuit Theory",
-        ("EEE2010",),
-        3.0,
-        source=EEE_REQUIREMENT_SOURCE,
-    ),
-    SpecificCourseRequirement(
-        "second_eee_digital_logic",
-        "Digital Logic Circuit",
-        ("EEE2040",),
-        3.0,
-        source=EEE_REQUIREMENT_SOURCE,
-    ),
-    SpecificCourseRequirement(
-        "second_eee_signals_systems",
-        "Signals and Systems",
-        ("EEE2060",),
-        3.0,
-        source=EEE_REQUIREMENT_SOURCE,
-    ),
-    SpecificCourseRequirement(
-        "second_eee_electronic_circuits_1",
-        "Electronic Circuits (1)",
-        ("EEE2050",),
-        3.0,
-        source=EEE_REQUIREMENT_SOURCE,
-    ),
-    SpecificCourseRequirement(
-        "second_eee_basic_analog_lab",
-        "Basic Analog Experiment",
-        ("EEE2111",),
-        3.0,
-        source=EEE_REQUIREMENT_SOURCE,
-    ),
-    SpecificCourseRequirement(
-        "second_eee_basic_digital_lab",
-        "Basic Digital Experiment",
-        ("EEE3313",),
-        3.0,
-        source=EEE_REQUIREMENT_SOURCE,
-    ),
-    SpecificCourseRequirement(
-        "second_eee_capstone",
-        "Electrical and Electronic Engineering Capstone Design",
-        ("EEE4610",),
-        3.0,
-        source=EEE_REQUIREMENT_SOURCE,
-    ),
+    SpecificCourseRequirement("second_eee_data_structures", "Data Structures", ("EEE2020",), 3.0, source=EEE_REQUIREMENT_SOURCE),
+    SpecificCourseRequirement("second_eee_electromagnetics_1", "Electromagnetics (1)", ("EEE2030",), 3.0, source=EEE_REQUIREMENT_SOURCE),
+    SpecificCourseRequirement("second_eee_basic_circuit_theory", "Basic Circuit Theory", ("EEE2010",), 3.0, source=EEE_REQUIREMENT_SOURCE),
+    SpecificCourseRequirement("second_eee_digital_logic", "Digital Logic Circuit", ("EEE2040",), 3.0, source=EEE_REQUIREMENT_SOURCE),
+    SpecificCourseRequirement("second_eee_signals_systems", "Signals and Systems", ("EEE2060",), 3.0, source=EEE_REQUIREMENT_SOURCE),
+    SpecificCourseRequirement("second_eee_electronic_circuits_1", "Electronic Circuits (1)", ("EEE2050",), 3.0, source=EEE_REQUIREMENT_SOURCE),
+    SpecificCourseRequirement("second_eee_basic_analog_lab", "Basic Analog Experiment", ("EEE2111",), 3.0, source=EEE_REQUIREMENT_SOURCE),
+    SpecificCourseRequirement("second_eee_basic_digital_lab", "Basic Digital Experiment", ("EEE3313",), 3.0, source=EEE_REQUIREMENT_SOURCE),
+    SpecificCourseRequirement("second_eee_capstone", "Electrical and Electronic Engineering Capstone Design", ("EEE4610",), 3.0, source=EEE_REQUIREMENT_SOURCE),
 )
 
 EEE_EXPERIMENT_2026_CODES = (
-    "EEE4549",
-    "EEE4423",
-    "EEE4473",
-    "EEE4621",
-    "EEE4548",
-    "EEE4474",
-    "EEE4475",
-    "EEE4476",
+    "EEE4549", "EEE4423", "EEE4473", "EEE4621", "EEE4548", "EEE4474", "EEE4475", "EEE4476",
 )
-
 EEE_EXPERIMENT_2026 = AnyOfRequirement(
-    "second_eee_experiment",
-    "EEE designated experiment elective",
-    EEE_EXPERIMENT_2026_CODES,
-    3.0,
-    source=EEE_REQUIREMENT_SOURCE,
+    "second_eee_experiment", "EEE designated experiment elective", EEE_EXPERIMENT_2026_CODES, 3.0, source=EEE_REQUIREMENT_SOURCE,
 )
-
 EEE_ELECTIVE_2026_CODES = frozenset(
     {
-        "EEE2001",
-        "EEE2112",
-        "EEE3120",
-        "EEE3150",
-        "EEE3210",
-        "EEE3220",
-        "EEE3240",
-        "EEE3310",
-        "EEE3314",
-        "EEE3350",
-        "EEE3410",
-        "EEE3430",
-        "EEE3440",
-        "EEE3450",
-        "EEE3510",
-        "EEE3511",
-        "EEE3530",
-        "EEE3535",
-        "EEE3540",
-        "EEE3543",
-        "EEE3544",
-        "EEE3545",
-        "EEE3547",
-        "EEE3548",
-        "EEE4110",
-        "EEE4120",
-        "EEE4140",
-        "EEE4240",
-        "EEE4250",
-        "EEE4260",
-        "EEE4270",
-        "EEE4280",
-        "EEE4290",
-        "EEE4320",
-        "EEE4340",
-        "EEE4350",
-        "EEE4420",
-        "EEE4430",
-        "EEE4624",
+        "EEE2001", "EEE2112", "EEE3120", "EEE3150", "EEE3210", "EEE3220", "EEE3240", "EEE3310", "EEE3314", "EEE3350",
+        "EEE3410", "EEE3430", "EEE3440", "EEE3450", "EEE3510", "EEE3511", "EEE3530", "EEE3535", "EEE3540", "EEE3543",
+        "EEE3544", "EEE3545", "EEE3547", "EEE3548", "EEE4110", "EEE4120", "EEE4140", "EEE4240", "EEE4250", "EEE4260",
+        "EEE4270", "EEE4280", "EEE4290", "EEE4320", "EEE4340", "EEE4350", "EEE4420", "EEE4430", "EEE4624",
     }
 )
-
 EEE_ELECTIVE_2026 = CreditBucketRequirement(
-    "second_eee_electives",
-    "EEE Major Electives",
-    target_credits=6.0,
-    qualification_rule_id="eee_major_elective_2018_plus",
-    source=EEE_REQUIREMENT_SOURCE,
+    "second_eee_electives", "EEE Major Electives", target_credits=6.0,
+    qualification_rule_id="eee_major_elective_2018_plus", source=EEE_REQUIREMENT_SOURCE,
 )
 
 
@@ -327,11 +209,7 @@ class SecondMajorCandidate:
 
 PHYSICS = SecondMajorCandidate(
     candidate_id="physics",
-    spec=SecondMajorSpec(
-        status=SecondMajorStatus.RESOLVED,
-        name="Physics",
-        requirements=PHYSICS_REQUIRED_2026 + (PHYSICS_ELECTIVE_2026,),
-    ),
+    spec=SecondMajorSpec(status=SecondMajorStatus.RESOLVED, name="Physics", requirements=PHYSICS_REQUIRED_2026 + (PHYSICS_ELECTIVE_2026,)),
     evidence_notes=(
         "Current 2024+ Physics second-major rule: 27 required + 9 elective = 36 credits.",
         "Required course identities and current elective catalogue are published by the department.",
@@ -344,11 +222,7 @@ PHYSICS = SecondMajorCandidate(
 
 ELECTRICAL_ELECTRONIC_ENGINEERING = SecondMajorCandidate(
     candidate_id="electrical-electronic-engineering",
-    spec=SecondMajorSpec(
-        status=SecondMajorStatus.RESOLVED,
-        name="Electrical and Electronic Engineering",
-        requirements=EEE_REQUIRED_2026 + (EEE_EXPERIMENT_2026, EEE_ELECTIVE_2026),
-    ),
+    spec=SecondMajorSpec(status=SecondMajorStatus.RESOLVED, name="Electrical and Electronic Engineering", requirements=EEE_REQUIRED_2026 + (EEE_EXPERIMENT_2026, EEE_ELECTIVE_2026)),
     evidence_notes=(
         "Current campus double-major table labels the active rule 2018+ and totals 36 credits.",
         "Structure: EEE2020 3 credits + eight fixed required courses 24 credits + one designated experiment 3 credits + published electives 6 credits.",
@@ -364,13 +238,14 @@ APPLIED_STATISTICS = SecondMajorCandidate(
     candidate_id="applied-statistics",
     spec=SecondMajorSpec(status=SecondMajorStatus.UNRESOLVED, name="Applied Statistics"),
     evidence_notes=(
-        "The July 2026 department notice establishes 36 major credits for an on-campus double major; Introduction to Statistics is a separate required course unless the first major already requires it.",
-        "The department publishes Major Basic, Major Requisite, and Major Elective course families and maintains a dedicated double-major requirement sheet.",
-        "For QRM students, QRM3004/QRM3005/QRM2004 cross-recognition is temporarily allowed only for courses already taken in a previous offering semester under the January 2026 rule.",
-        "The department also limits outside-department credit recognition for double-major students to two courses and lists specific non-recognizable Math/IE courses.",
+        "The July 2026 department notice establishes 36 major credits for an on-campus double major; Introduction to Statistics is a separate required course unless the first major already requires it. QRM already requires STA1001, so this QRM-first-major scenario does not add a separate 3-credit STA1001 burden beyond the 36 major credits.",
+        "The authoritative category structure is organized in a dedicated campus-double-major workbook sheet.",
+        "For QRM students, the January 2026 temporary prior-taking rule maps QRM3004 -> STA3125, QRM3005 -> STA3126, and QRM2004 -> STA2105; it applies only to courses already taken in a previous offering semester under the notice's temporary rule.",
+        "A course recognized as a QRM Major Elective cannot simultaneously be used as Applied Statistics second-major credit; the general exclusive-major-assignment engine must therefore branch when a real overlap is established.",
+        "The department limits outside-department recognition for double-major students to two courses and publishes additional exclusions/conditions.",
     ),
     unresolved_notes=(
-        "The current category-by-category double-major spreadsheet could not be ingested through the available interface, so its exact Basic/Requisite/Elective minima are not encoded.",
+        "The current category-by-category double-major spreadsheet could be identified but not parsed through the available web/connector interface, so exact Basic/Requisite/Elective minima are not encoded.",
         "Do not replace the missing category structure with a generic 36-credit bucket.",
     ),
 )
@@ -378,22 +253,19 @@ APPLIED_STATISTICS = SecondMajorCandidate(
 MATHEMATICS = SecondMajorCandidate(
     candidate_id="mathematics",
     spec=SecondMajorSpec(status=SecondMajorStatus.UNRESOLVED, name="Mathematics"),
-    evidence_notes=(
-        "The department's 2022+ major-credit table states that a second Mathematics major requires 36 major credits: 9 required + 27 elective.",
-    ),
-    unresolved_notes=(
-        "The currently published course-flow image labels more courses as required than the 2022+ 9-credit table can permit; exact current required-course identities therefore remain unresolved rather than being inferred.",
-    ),
+    evidence_notes=("The department's 2022+ major-credit table states that a second Mathematics major requires 36 major credits: 9 required + 27 elective.",),
+    unresolved_notes=("The currently published course-flow image labels more courses as required than the 2022+ 9-credit table can permit; exact current required-course identities therefore remain unresolved rather than being inferred.",),
 )
 
 INDUSTRIAL_ENGINEERING = SecondMajorCandidate(
     candidate_id="industrial-engineering",
     spec=SecondMajorSpec(status=SecondMajorStatus.UNRESOLVED, name="Industrial Engineering"),
     evidence_notes=(
-        "The department currently publishes a cohort-specific graduation-requirement workbook revised 2025-06-19 and instructs students to use entry-year-specific rules.",
+        "The department currently publishes the entry-year-specific workbook 산업공학과_졸업요건표(2025.06.19).xlsx and explicitly instructs students to apply the row for their admission year.",
     ),
     unresolved_notes=(
-        "The attached workbook could be identified but not safely parsed through the available interface, so its current second-major category/course structure is not encoded.",
+        "The official attachment could be identified but not parsed through the available web/connector interface, so its current second-major category/course structure is not encoded.",
+        "Courses absent from the table may require department-office confirmation, so no inference from the general IE curriculum is substituted for the workbook.",
     ),
 )
 
@@ -410,19 +282,11 @@ COMPUTER_SCIENCE = SecondMajorCandidate(
     ),
 )
 
-
 SECOND_MAJOR_CANDIDATES_2026: tuple[SecondMajorCandidate, ...] = (
-    MATHEMATICS,
-    INDUSTRIAL_ENGINEERING,
-    ELECTRICAL_ELECTRONIC_ENGINEERING,
-    COMPUTER_SCIENCE,
-    APPLIED_STATISTICS,
-    PHYSICS,
+    MATHEMATICS, INDUSTRIAL_ENGINEERING, ELECTRICAL_ELECTRONIC_ENGINEERING,
+    COMPUTER_SCIENCE, APPLIED_STATISTICS, PHYSICS,
 )
-
-SECOND_MAJOR_CANDIDATES_BY_ID = {
-    candidate.candidate_id: candidate for candidate in SECOND_MAJOR_CANDIDATES_2026
-}
+SECOND_MAJOR_CANDIDATES_BY_ID = {candidate.candidate_id: candidate for candidate in SECOND_MAJOR_CANDIDATES_2026}
 
 
 def qrm_double_major_candidate_2026(candidate_id: str) -> DegreeScenario:
@@ -444,9 +308,7 @@ def qrm_double_major_candidate_2026(candidate_id: str) -> DegreeScenario:
     combined = base.requirements + candidate.spec.requirements
     requirement_ids = tuple(requirement.requirement_id for requirement in combined)
     if len(requirement_ids) != len(set(requirement_ids)):
-        raise DegreeRuleError(
-            f"duplicate requirement id while building second-major scenario {candidate_id!r}"
-        )
+        raise DegreeRuleError(f"duplicate requirement id while building second-major scenario {candidate_id!r}")
 
     return replace(
         base,
