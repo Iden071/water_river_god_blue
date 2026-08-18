@@ -25,6 +25,7 @@ from .preferences import (
     LinearPreferenceRelation,
     PreferenceProfile,
     PreferenceProvenance,
+    PreferenceRuleError,
 )
 from .timetable_quality import TimetableQualityFacts
 
@@ -175,7 +176,7 @@ def timetable_preference_quantities(facts: TimetableQualityFacts) -> dict[str, f
 def _contribution(profile: PreferenceProfile, dimension_id: str, quantity: float):
     try:
         value = profile.value(dimension_id)
-    except Exception:
+    except PreferenceRuleError:
         return None, UnresolvedUtilityDimension(
             dimension_id=dimension_id,
             quantity=quantity,
