@@ -73,9 +73,9 @@ class RecognitionAssessment:
 class CourseRecognitionEvidence:
     """Explicit evidence not yet encoded as a canonical physical/listing fact.
 
-    ``foreign_language_course`` is for the non-UIC language route.  ``korean_taught`` is
-    needed for the QRM 4-course/12-credit Korean-course recognition cap.  Neither defaults
-    to False: absence of evidence remains unknown.
+    ``foreign_language_course`` is for the non-UIC language route. ``korean_taught`` may
+    resolve the QRM Korean-course cap only when the canonical portal lecture-language label
+    is absent or itself unresolved. Neither defaults to False: absence remains unknown.
     """
 
     foreign_language_course: bool | None = None
@@ -143,7 +143,7 @@ LHP_PHILOSOPHY_CODES = frozenset({"UIC1901"})
 CHAPEL_2026_CODES = frozenset({"YCA1005", "YCA1006", "YCA1007", "YCA1008"})
 
 
-# 2026 QRM curriculum: coded ME entries.  Curriculum rows whose code is shown as "-"
+# 2026 QRM curriculum: coded ME entries. Curriculum rows whose code is shown as "-"
 # cannot be recognized by title guessing here; a concrete QRM program-listing observation
 # may establish those sections instead.
 QRM_ME_2026_CODES = frozenset(
@@ -173,6 +173,12 @@ QRM_ME_2026_CODES = frozenset(
         "ECO4865",
     }
 )
+
+
+# These are explicit human-readable portal labels, not reverse-engineered numeric codes.
+# Keep the set deliberately narrow: an unrecognized or mixed label remains unresolved.
+PORTAL_KOREAN_LECTURE_LABELS = frozenset({"한국어", "korean"})
+PORTAL_NON_KOREAN_LECTURE_LABELS = frozenset({"영어", "english"})
 
 
 def _decision(
@@ -305,7 +311,7 @@ def _language_status(
             QualificationStatus.NOT_QUALIFIED,
             f"explicit evidence says this is not a qualifying foreign-language course{': ' + evidence.source if evidence.source else ''}",
         )
-    # The current project specifically contains YCF language candidates.  Prefix alone is
+    # The current project specifically contains YCF language candidates. Prefix alone is
     # not enough to certify them, but it is enough to identify the unresolved evidence path.
     if code.startswith("YCF"):
         return _decision(
@@ -373,17 +379,42 @@ def _specific_or_anyof_status(
     )
 
 
-def _subject_to_korean_qrm_cap(
-    source_views: tuple[SourceListingView, ...],
-    evidence: CourseRecognitionEvidence,
-) -> bool | None:
-    if not _is_econ_or_applied_statistics(source_views):
-        return False
-    if evidence.korean_taught is True:
+def _portal_korean_taught(section: Section) -> bool | None:
+    """Interpret only explicit human-readable portal labels; never decode language_code."""
+
+    label = section.language_name.strip().casefold()
+    if not label:
+        return None
+    if label in PORTAL_KOREAN_LECTURE_LABELS:
         return True
-    if evidence.korean_taught is False:
+    if label in PORTAL_NON_KOREAN_LECTURE_LABELS:
         return False
     return None
+
+
+def _subject_to_korean_qrm_cap(
+    section: Section,
+    source_views: tuple[SourceListingView, ...],
+    evidence: CourseRecognitionEvidence,
+) -> tuple[bool | None, RecognitionIssue | None]:
+    if not _is_econ_or_applied_statistics(source_views):
+        return False, None
+
+    portal = _portal_korean_taught(section)
+    manual = evidence.korean_taught
+    if portal is not None and manual is not None and portal is not manual:
+        return (
+            None,
+            RecognitionIssue(
+                "lecture_language_conflict",
+                "canonical portal lecture-language label conflicts with explicit manual Korean-language evidence",
+            ),
+        )
+    if portal is not None:
+        return portal, None
+    if manual is not None:
+        return manual, None
+    return None, None
 
 
 def _qrm_major_requirement_ids(scenario: DegreeScenario) -> frozenset[str]:
@@ -462,7 +493,9 @@ def recognize_section(
 
     # Apply the Korean-taught Economics/Applied Statistics cap to QRM-major recognitions.
     qrm_ids = _qrm_major_requirement_ids(scenario)
-    cap_subject = _subject_to_korean_qrm_cap(source_views, evidence)
+    cap_subject, language_issue = _subject_to_korean_qrm_cap(section, source_views, evidence)
+    if language_issue is not None:
+        issues.append(language_issue)
     adjusted: list[QualificationDecision] = []
     korean_qrm_credits = 0.0
     for decision in decisions:
@@ -475,7 +508,7 @@ def recognize_section(
                 _decision(
                     decision.requirement_id,
                     QualificationStatus.UNRESOLVED,
-                    "Economics/Applied Statistics source is known, but Korean-vs-non-Korean lecture evidence is missing",
+                    "Economics/Applied Statistics source is known, but Korean-vs-non-Korean lecture evidence is missing or conflicting",
                 )
             )
             issues.append(
@@ -547,7 +580,7 @@ def recognize_section(
                 offline=None,
                 label=section.name,
             ),
-            reason="documented Chapel completion; offline/online status remains unresolved",
+            reason="documented Chapel completion; modality is retained separately from the four-pass graduation rule",
         )
         return RecognitionAssessment(
             section_id=section.section_id,
