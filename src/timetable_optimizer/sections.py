@@ -1,35 +1,38 @@
-"""Pure section/time primitives for the Stage 4 rebuild.
+"""Pure canonical section and schedule primitives for the Stage 4 rebuild.
 
-This module deliberately performs no file I/O and has no import-time side effects.
-It is intended to replace the parsing/classification responsibilities currently spread
-across build_canonical.py, pools_past.py, rank2.py, and fm_fix.py.
+This module is deliberately limited to source-faithful structural facts.  It performs no
+file I/O, makes no degree/eligibility/preference decisions, and never guesses a schedule
+when the source data is ambiguous.
 
-The three masks have different semantics:
+A schedule has three different meanings when it is successfully parsed:
 
-    conflict_mask  registration/timetable overlap that the university blocks
+    conflict_mask  registration/timetable overlap blocked by the university
     presence_mask  periods requiring physical campus presence
     fixed_mask     periods that pin the user's personal schedule to a clock time
 
-Recorded video that cannot overlap another registered class therefore appears in
-``conflict_mask`` but not ``fixed_mask``. Freely overlappable video appears in none.
+For every :class:`ParsedSchedule`, ``presence ⊆ fixed ⊆ conflict``.
+
+Crucially, a source row with no listed time is represented by
+:class:`NoListedSchedule`, not by three zero masks.  A malformed or ambiguous schedule is
+represented by :class:`UnresolvedSchedule`, not by a guessed schedule.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, TypeAlias
 
 
 DAYS = {"월": 0, "화": 1, "수": 2, "목": 3, "금": 4, "토": 5, "일": 6}
 
 
 class SectionParseError(ValueError):
-    """Base error for section records whose schedule cannot be interpreted safely."""
+    """Base error for section facts that cannot be interpreted safely."""
 
 
 class SegmentAlignmentError(SectionParseError):
-    """Raised when time segments cannot be aligned with delivery metadata safely."""
+    """Raised internally when time and delivery segments cannot be aligned safely."""
 
 
 class DeliveryKind(str, Enum):
@@ -40,47 +43,116 @@ class DeliveryKind(str, Enum):
 
 
 @dataclass(frozen=True)
+class ScheduleSegment:
+    """One aligned time/delivery segment, retaining the source text that produced it."""
+
+    raw_time_text: str
+    raw_room_text: str
+    blocks: frozenset[tuple[int, int]]
+    delivery_kind: DeliveryKind
+
+
+@dataclass(frozen=True)
+class ParsedSchedule:
+    """A schedule whose timing and delivery semantics are sufficiently determined."""
+
+    raw_time_text: str
+    raw_room_text: str
+    segments: tuple[ScheduleSegment, ...]
+    conflict_mask: int
+    presence_mask: int
+    fixed_mask: int
+
+    def __post_init__(self) -> None:
+        if self.presence_mask & ~self.fixed_mask:
+            raise SectionParseError("presence_mask is not a subset of fixed_mask")
+        if self.fixed_mask & ~self.conflict_mask:
+            raise SectionParseError("fixed_mask is not a subset of conflict_mask")
+
+
+@dataclass(frozen=True)
+class NoListedSchedule:
+    """The source row contains no listed class time.
+
+    This means only that no schedule is listed.  It must not be interpreted as proof that
+    the section is asynchronous, freely overlappable, or schedule-neutral.
+    """
+
+    raw_time_text: str
+    raw_room_text: str
+
+
+@dataclass(frozen=True)
+class UnresolvedSchedule:
+    """The source contains schedule information that cannot be interpreted safely."""
+
+    raw_time_text: str
+    raw_room_text: str
+    reason: str
+
+
+Schedule: TypeAlias = ParsedSchedule | NoListedSchedule | UnresolvedSchedule
+
+
+@dataclass(frozen=True)
 class Section:
-    """Canonical section record independent of search/scoring code."""
+    """Canonical physical-section facts independent of downstream model decisions."""
 
     section_id: str
     course_code: str
     name: str
     korean_name: str
     campus: str
-    credits: float
+    credits: float | None
     professor: str
     department: str
     year_label: str
     language_code: str
-    category: str
+    catalogue_category: str
     note: str
     grading: str
-    cancelled: bool
-    time_text: str
-    room_text: str
+    cancelled: bool | None
     mode_text: str
-    conflict_mask: int
-    presence_mask: int
-    fixed_mask: int
-    delivery_kinds: tuple[DeliveryKind, ...]
+    schedule: Schedule
 
     @property
-    def has_fixed_time(self) -> bool:
-        return bool(self.fixed_mask)
+    def schedule_is_parsed(self) -> bool:
+        return isinstance(self.schedule, ParsedSchedule)
 
     @property
-    def has_campus_presence(self) -> bool:
-        return bool(self.presence_mask)
+    def conflict_mask(self) -> int | None:
+        return self.schedule.conflict_mask if isinstance(self.schedule, ParsedSchedule) else None
+
+    @property
+    def presence_mask(self) -> int | None:
+        return self.schedule.presence_mask if isinstance(self.schedule, ParsedSchedule) else None
+
+    @property
+    def fixed_mask(self) -> int | None:
+        return self.schedule.fixed_mask if isinstance(self.schedule, ParsedSchedule) else None
+
+    @property
+    def delivery_kinds(self) -> tuple[DeliveryKind, ...] | None:
+        if not isinstance(self.schedule, ParsedSchedule):
+            return None
+        return tuple(segment.delivery_kind for segment in self.schedule.segments)
+
+    @property
+    def time_text(self) -> str:
+        return self.schedule.raw_time_text
+
+    @property
+    def room_text(self) -> str:
+        return self.schedule.raw_room_text
 
 
 
 def segment_blocks(segment: str) -> frozenset[tuple[int, int]]:
     """Parse one portal time segment into ``(day, period)`` pairs.
 
-    Parenthesized periods are intentionally treated as occupied, matching the current
-    verified portal semantics. Period 0 and negative/empty periods are ignored; callers
-    may apply stricter institutional validation separately.
+    Parenthesized periods remain occupied.  A digit run closes on any non-digit, avoiding
+    the historical ``목1(목2) -> 목12`` corruption.  Institutional range validation is done
+    when masks are constructed.
     """
 
     out: set[tuple[int, int]] = set()
@@ -104,7 +176,7 @@ def segment_blocks(segment: str) -> frozenset[tuple[int, int]]:
 
 
 def classify_room_segment(room_segment: str) -> DeliveryKind:
-    """Classify the delivery behavior represented by one non-empty room/mode segment."""
+    """Classify one non-empty room/delivery segment using verified portal semantics."""
 
     text = str(room_segment or "").strip()
     if not text:
@@ -133,56 +205,40 @@ def mask_from_blocks(blocks: Iterable[tuple[int, int]]) -> int:
 
 
 
-def _nonempty_time_segments(time_text: str) -> list[tuple[str, frozenset[tuple[int, int]]]]:
-    out: list[tuple[str, frozenset[tuple[int, int]]]] = []
-    for raw in str(time_text or "").split("/"):
-        blocks = segment_blocks(raw)
-        if blocks:
-            out.append((raw, blocks))
-    return out
+def _parsed_schedule(time_text: str, room_text: str) -> ParsedSchedule:
+    raw_time_segments = [segment for segment in time_text.split("/") if segment.strip()]
+    raw_room_segments = room_text.split("/")
 
-
-
-def _aligned_segments(
-    time_text: str, room_text: str
-) -> list[tuple[frozenset[tuple[int, int]], DeliveryKind]]:
-    """Return aligned time/delivery segments without guessing missing room metadata."""
-
-    times = _nonempty_time_segments(time_text)
-    if not times:
-        return []
-
-    rooms = str(room_text or "").split("/")
-    if len(rooms) != len(times):
+    if len(raw_room_segments) != len(raw_time_segments):
         raise SegmentAlignmentError(
             "time/room segment mismatch: "
-            f"{len(times)} time segment(s) vs {len(rooms)} room segment(s); "
+            f"{len(raw_time_segments)} time segment(s) vs "
+            f"{len(raw_room_segments)} room segment(s); "
             f"time={time_text!r} room={room_text!r}"
         )
 
-    out = []
-    for i, (_raw, blocks) in enumerate(times):
-        room = rooms[i].strip()
-        if not room:
-            raise SegmentAlignmentError(
-                "scheduled time has blank room/delivery segment: "
-                f"segment {i + 1}; time={time_text!r} room={room_text!r}"
-            )
-        out.append((blocks, classify_room_segment(room)))
-    return out
-
-
-
-def _masks(
-    aligned: Iterable[tuple[frozenset[tuple[int, int]], DeliveryKind]]
-) -> tuple[int, int, int, tuple[DeliveryKind, ...]]:
+    segments: list[ScheduleSegment] = []
     conflict: set[tuple[int, int]] = set()
     presence: set[tuple[int, int]] = set()
     fixed: set[tuple[int, int]] = set()
-    kinds: list[DeliveryKind] = []
 
-    for blocks, kind in aligned:
-        kinds.append(kind)
+    for index, raw_time in enumerate(raw_time_segments):
+        blocks = segment_blocks(raw_time)
+        if not blocks:
+            raise SectionParseError(
+                "listed time segment has no parseable periods: "
+                f"segment {index + 1}; time={time_text!r}"
+            )
+        raw_room = raw_room_segments[index].strip()
+        kind = classify_room_segment(raw_room)
+        segment = ScheduleSegment(
+            raw_time_text=raw_time,
+            raw_room_text=raw_room,
+            blocks=blocks,
+            delivery_kind=kind,
+        )
+        segments.append(segment)
+
         if kind in {
             DeliveryKind.IN_PERSON,
             DeliveryKind.LIVE_ONLINE,
@@ -194,37 +250,72 @@ def _masks(
         if kind in {DeliveryKind.IN_PERSON, DeliveryKind.LIVE_ONLINE}:
             fixed.update(blocks)
 
-    return (
-        mask_from_blocks(conflict),
-        mask_from_blocks(presence),
-        mask_from_blocks(fixed),
-        tuple(kinds),
+    return ParsedSchedule(
+        raw_time_text=time_text,
+        raw_room_text=room_text,
+        segments=tuple(segments),
+        conflict_mask=mask_from_blocks(conflict),
+        presence_mask=mask_from_blocks(presence),
+        fixed_mask=mask_from_blocks(fixed),
     )
 
 
 
-def _is_cancelled(raw: Mapping[str, Any]) -> bool:
-    """Read the portal's explicit cancellation fields without inferring from free text."""
+def parse_schedule(time_value: Any, room_value: Any) -> Schedule:
+    """Parse schedule source fields without converting missing/ambiguous data to zero."""
 
-    name = str(raw.get("rmvlcYnNm") or "").strip()
+    time_text = str(time_value or "").strip()
+    room_text = str(room_value or "")
+    if not time_text:
+        return NoListedSchedule(raw_time_text=time_text, raw_room_text=room_text)
+    try:
+        return _parsed_schedule(time_text, room_text)
+    except SectionParseError as exc:
+        return UnresolvedSchedule(
+            raw_time_text=time_text,
+            raw_room_text=room_text,
+            reason=f"{type(exc).__name__}: {exc}",
+        )
+
+
+
+def _credits(raw: Mapping[str, Any]) -> float | None:
+    value = raw.get("cdt")
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise SectionParseError(f"invalid credit value: {value!r}") from exc
+
+
+
+def _cancelled(raw: Mapping[str, Any]) -> bool | None:
+    """Preserve explicit portal cancellation evidence without inventing a default."""
+
+    flag_present = "rmvlcYn" in raw and raw.get("rmvlcYn") not in (None, "")
+    name_present = "rmvlcYnNm" in raw and str(raw.get("rmvlcYnNm") or "").strip() != ""
     flag = str(raw.get("rmvlcYn") or "").strip()
-    return name == "폐강" or flag == "1"
+    name = str(raw.get("rmvlcYnNm") or "").strip()
+
+    if flag == "1" or name == "폐강":
+        return True
+    if flag_present and flag == "0":
+        return False
+    if name_present and name != "폐강":
+        return False
+    return None
 
 
 
 def section_from_raw(raw: Mapping[str, Any]) -> Section:
-    """Construct a canonical :class:`Section` from one portal row.
+    """Construct canonical physical-section facts from one portal observation.
 
-    Both campuses are accepted. A row with no scheduled time is preserved with zero masks.
-    Ambiguous or missing time/room alignment raises :class:`SegmentAlignmentError` instead
-    of copying a room segment, assuming in-person delivery, or discarding the section. A
-    higher ingestion layer can catch that exception and retain an explicit unresolved row.
+    Missing identity or malformed numeric facts raise :class:`SectionParseError` because a
+    physical section cannot be safely constructed.  Schedule ambiguity does *not* raise;
+    it is retained inside :class:`UnresolvedSchedule` so the section's other known facts do
+    not disappear.
     """
-
-    time_text = str(raw.get("lctreTimeNm") or "").strip()
-    room_text = str(raw.get("lecrmNm") or "")
-    aligned = _aligned_segments(time_text, room_text)
-    conflict, presence, fixed, kinds = _masks(aligned)
 
     section_id = str(raw.get("subjtnbCorsePrcts") or "").strip()
     course_code = str(raw.get("subjtnb") or "").strip()
@@ -239,20 +330,15 @@ def section_from_raw(raw: Mapping[str, Any]) -> Section:
         name=str(raw.get("subjtEngNm") or raw.get("subjtNm") or ""),
         korean_name=str(raw.get("subjtNm") or ""),
         campus=str(raw.get("campsDivNm") or ""),
-        credits=float(raw.get("cdt") or 0),
+        credits=_credits(raw),
         professor=str(raw.get("cgprfNm") or ""),
         department=str(raw.get("estblDeprtNm") or ""),
         year_label=str(raw.get("hy") or ""),
         language_code=str(raw.get("srclnLctreLangDivCd") or ""),
-        category=str(raw.get("subsrtDivNm") or ""),
+        catalogue_category=str(raw.get("subsrtDivNm") or ""),
         note=str(raw.get("atntnMattrDesc") or ""),
         grading=str(raw.get("gradeEvlMthdDivNm") or ""),
-        cancelled=_is_cancelled(raw),
-        time_text=time_text,
-        room_text=room_text,
+        cancelled=_cancelled(raw),
         mode_text=str(raw.get("subjtClNm") or ""),
-        conflict_mask=conflict,
-        presence_mask=presence,
-        fixed_mask=fixed,
-        delivery_kinds=kinds,
+        schedule=parse_schedule(raw.get("lctreTimeNm"), raw.get("lecrmNm")),
     )
