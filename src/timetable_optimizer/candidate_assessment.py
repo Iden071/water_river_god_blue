@@ -31,20 +31,17 @@ from .course_preferences import (
     assess_section_course_preferences,
 )
 from .degree import DegreeScenario, DegreeState
-from .preferences import EstimateStatus, PreferenceProfile, PreferenceValue
-from .recognition import QualificationStatus, RecognitionAssessment
+from .preferences import PreferenceProfile, PreferenceValue
+from .recognition import (
+    CHAPEL_2026_CODES,
+    QualificationStatus,
+    RecognitionAssessment,
+)
 from .registration import ObtainabilityStatus, RegistrationAssessment
-from .sections import CHAPEL_2026_CODES if False else ParsedSchedule  # type: ignore
-from .sections import Section
+from .sections import ParsedSchedule, Section
 from .timetable_quality import TimetableQualityFacts, extract_timetable_quality
 from .timetable_utility import PartialUtilityAssessment, evaluate_timetable_utility
 from .travel import TravelPathFacts, extract_travel_path_facts
-
-
-# Chapel codes live in recognition.py.  Importing them here keeps the canonical Section
-# layer free of degree semantics while still letting the integration layer report ordinary
-# versus nonstandard credit load separately.
-from .recognition import CHAPEL_2026_CODES
 
 
 class CandidateAssessmentError(ValueError):
@@ -91,7 +88,9 @@ class CandidateLoadFacts:
             self.chapel_known_credits,
         ):
             if not isfinite(value) or value < 0:
-                raise CandidateAssessmentError("candidate credit totals must be finite and nonnegative")
+                raise CandidateAssessmentError(
+                    "candidate credit totals must be finite and nonnegative"
+                )
 
 
 @dataclass(frozen=True)
@@ -200,8 +199,12 @@ def _load_facts(sections: tuple[Section, ...]) -> CandidateLoadFacts:
     )
 
 
-def _time_conflicts(sections: tuple[Section, ...]) -> tuple[CandidateConstraintIssue, ...]:
-    parsed = [section for section in sections if isinstance(section.schedule, ParsedSchedule)]
+def _time_conflicts(
+    sections: tuple[Section, ...],
+) -> tuple[CandidateConstraintIssue, ...]:
+    parsed = [
+        section for section in sections if isinstance(section.schedule, ParsedSchedule)
+    ]
     out: list[CandidateConstraintIssue] = []
     for index, left in enumerate(parsed):
         for right in parsed[index + 1 :]:
@@ -259,7 +262,9 @@ def assess_candidate(
 
     section_ids = tuple(section.section_id for section in sections)
     if len(section_ids) != len(set(section_ids)):
-        raise CandidateAssessmentError("candidate cannot contain the same physical section twice")
+        raise CandidateAssessmentError(
+            "candidate cannot contain the same physical section twice"
+        )
 
     if degree_transition is not None:
         if degree_scenario is None:
@@ -301,7 +306,8 @@ def assess_candidate(
                     code="schedule_unresolved",
                     status=ConstraintEvidenceStatus.UNRESOLVED,
                     message=(
-                        "section schedule is not safely parsed, so conflicts and lived timetable quality cannot be fully established"
+                        "section schedule is not safely parsed, so conflicts and lived "
+                        "timetable quality cannot be fully established"
                     ),
                     section_ids=(section.section_id,),
                     source=type(section.schedule).__name__,
@@ -326,7 +332,10 @@ def assess_candidate(
                 CandidateConstraintIssue(
                     code="simultaneous_multi_campus_presence",
                     status=ConstraintEvidenceStatus.VIOLATED,
-                    message="candidate requires physical presence at multiple campuses simultaneously",
+                    message=(
+                        "candidate requires physical presence at multiple campuses "
+                        "simultaneously"
+                    ),
                     section_ids=conflict.section_ids,
                     source="canonical physical-presence intervals",
                 )
@@ -350,7 +359,8 @@ def assess_candidate(
                     code="travel_feasibility_unresolved",
                     status=ConstraintEvidenceStatus.UNRESOLVED,
                     message=(
-                        "cross-campus transition exists but no explicit travel-time/residence scenario has established physical feasibility"
+                        "cross-campus transition exists but no explicit travel-time/residence "
+                        "scenario has established physical feasibility"
                     ),
                     section_ids=involved,
                     source="Stage 4C travel path facts",
@@ -402,7 +412,9 @@ def assess_candidate(
                     source="Stage 4C registration evidence",
                 )
             )
-            present_unknowns.add(f"registration_obtainability::{section.section_id}")
+            present_unknowns.add(
+                f"registration_obtainability::{section.section_id}"
+            )
             continue
         if assessment.section_id != section.section_id:
             raise CandidateAssessmentError(
@@ -414,15 +426,21 @@ def assess_candidate(
                 CandidateConstraintIssue(
                     code="registration_year_gate_block",
                     status=ConstraintEvidenceStatus.VIOLATED,
-                    message="observed year-quota scheme blocks this section for a freshman",
+                    message=(
+                        "observed year-quota scheme blocks this section for a freshman"
+                    ),
                     section_ids=(section.section_id,),
                     source=assessment.quota_source_id or "registration assessment",
                 )
             )
         if assessment.obtainability.status is ObtainabilityStatus.UNMEASURED:
-            present_unknowns.add(f"registration_obtainability::{section.section_id}")
+            present_unknowns.add(
+                f"registration_obtainability::{section.section_id}"
+            )
         elif assessment.obtainability.status is ObtainabilityStatus.HEURISTIC:
-            present_unknowns.add(f"registration_obtainability_heuristic::{section.section_id}")
+            present_unknowns.add(
+                f"registration_obtainability_heuristic::{section.section_id}"
+            )
 
     recognition_map = recognition_assessments or {}
     recognition: list[RecognitionAssessment] = []
@@ -438,8 +456,12 @@ def assess_candidate(
 
     future_unknowns: set[str] = set(_recognition_unknowns(tuple(recognition)))
     if degree_scenario is not None and len(recognition) < len(sections):
-        missing = set(section_ids) - {assessment.section_id for assessment in recognition}
-        future_unknowns.update(f"recognition_missing::{section_id}" for section_id in missing)
+        missing = set(section_ids) - {
+            assessment.section_id for assessment in recognition
+        }
+        future_unknowns.update(
+            f"recognition_missing::{section_id}" for section_id in missing
+        )
     if degree_scenario is not None and degree_transition is None:
         future_unknowns.add("degree_transition_not_selected")
     if degree_scenario is None:
