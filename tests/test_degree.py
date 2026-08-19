@@ -40,9 +40,7 @@ class DegreeScenarioStructureTests(unittest.TestCase):
         self.assertIsInstance(chapel, ChapelRequirement)
         self.assertEqual(chapel.passes_required, 4)
         self.assertEqual(chapel.credits_per_pass, 0.5)
-        # Current verified Chapel rules require four passes; no separate minimum
-        # number of face-to-face/offline passes is established as a graduation rule.
-        self.assertEqual(chapel.offline_passes_required, 0)
+        self.assertEqual(chapel.offline_passes_required, 2)
 
     def test_mr5_is_an_any_of_requirement_not_a_flattened_course(self):
         scenario = qrm_single_major_2026()
@@ -130,9 +128,9 @@ class Spring2026InitialStateTests(unittest.TestCase):
         self.assertEqual(self.state.categories_for("cc_lhp"), frozenset({"philosophy"}))
         self.assertFalse(self.state.is_requirement_satisfied(self.scenario, "cc_lhp"))
 
-    def test_chapel_pass_is_known_but_offline_status_remains_bounded(self):
+    def test_chapel_pass_is_known_and_first_offline_pass_is_confirmed(self):
         self.assertEqual(self.state.chapel.passes_completed, 1)
-        self.assertEqual(self.state.chapel.offline_passes_min, 0)
+        self.assertEqual(self.state.chapel.offline_passes_min, 1)
         self.assertEqual(self.state.chapel.offline_passes_max, 1)
         self.assertFalse(self.state.is_requirement_satisfied(self.scenario, "cc_chapel"))
 
