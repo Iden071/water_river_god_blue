@@ -1,11 +1,13 @@
 # SPEC — Timetable Optimization
 
-**Status:** Provisional specification v0.4  
+**Status:** Provisional specification v0.5  
 **Stage:** Stage 3 implementation audit completed; Stage 4 repair starting
 
 This document defines what the program is supposed to do.
 
 It is authoritative over implementation choices, old model descriptions, historical handoffs, and superseded rules. `RULES.md` remains an evidence/history archive rather than the governing specification.
+
+The user has manually validated this specification. Material outside `SPEC.md` — including `RULES.md`, prior research notes, historical handoffs, old implementations, and interpretations of institutional documents — remains provisional until the user manually double-checks it or directly confirms the specific fact and it is promoted into this specification. Such material may identify evidence to investigate, but it must not silently override `SPEC.md` or be described as user-confirmed.
 
 This specification is intentionally amendable. If later auditing reveals an omitted purpose, preference, constraint, or consequence, this document should be corrected explicitly before the model is changed to match it.
 
@@ -193,7 +195,7 @@ Such future timeline assumptions should therefore be explicit scenarios rather t
 
 The user's Chapel preference is **timing-specific**, not a generic intrinsic bonus attached to every Chapel whenever it is taken.
 
-The degree requires **at least two offline Chapel passes**. The user completed **one offline Chapel pass in Spring 2026**, so entering Fall 2026 at least one additional offline pass remains required. This modality requirement must be represented separately from the total Chapel-pass count; a Chapel whose offline/online status is not established must not be silently counted as offline.
+The degree requires **at least two offline Chapel passes**. The user completed **one offline Chapel pass in Spring 2026**, so entering Fall 2026 at least one additional offline pass remains required. **Freshmen are required to take Chapel offline, so any qualifying Chapel taken by the user in Fall 2026 is definitively an offline pass.** Outside the freshman context, Chapel modality must still be established by the relevant evidence rather than assumed.
 
 The relevant reason for preferring Chapel now is that the degree requires offline Chapel passes, and completing those offline passes while the freshman/international-campus Chapel setup is appropriate is desirable. A Chapel taken now may therefore carry a real timing advantage over postponing that same obligation.
 
@@ -418,7 +420,7 @@ The program is not intended to:
 - Credit load, not raw course count, is the relevant load dimension.
 - Future degree obligations are finite and must be conserved.
 - Avoided required-course costs may merely be relocated.
-- Chapel requires at least two offline passes; one was completed in Spring 2026. Chapel also has a timing-specific preference for completing the remaining required offline pass while the freshman/international-campus setup is appropriate; it is not a generic permanent per-Chapel bonus.
+- Chapel requires at least two offline passes; one was completed in Spring 2026. Freshman Chapel is offline by rule, so a Fall 2026 Chapel taken by the user supplies the remaining offline-pass minimum. Chapel also has a timing-specific preference for completing that obligation while the freshman/international-campus setup is appropriate; it is not a generic permanent per-Chapel bonus.
 - 국제 is effectively the dorm environment for local travel.
 - Mixed-campus semesters are possible and should be modeled through actual travel paths and feasibility.
 - Difficulty and workload belong in the model when defensibly represented.
