@@ -32,12 +32,14 @@ class RealFallResumableEnumerationSmokeTests(unittest.TestCase):
         )
 
     def test_bounded_real_batch_is_exactly_resumable_not_fake_complete(self):
+        max_candidates = 10_000
+        max_checks = 1_000_000
         if self.universe.status is not FallUniverseStatus.GLOBAL_COMPLETE:
             batch = enumerate_fall_candidate_batch(
                 self.universe,
                 fall2026_load_policy(),
-                max_emitted_candidates=10_000,
-                max_extension_checks=1_000_000,
+                max_emitted_candidates=max_candidates,
+                max_extension_checks=max_checks,
             )
             self.assertEqual(
                 batch.status,
@@ -48,12 +50,19 @@ class RealFallResumableEnumerationSmokeTests(unittest.TestCase):
         batch = enumerate_fall_candidate_batch(
             self.universe,
             fall2026_load_policy(),
-            max_emitted_candidates=10_000,
-            max_extension_checks=1_000_000,
+            max_emitted_candidates=max_candidates,
+            max_extension_checks=max_checks,
         )
         self.assertEqual(batch.status, FallResumableEnumerationStatus.PAUSED)
         self.assertIsNotNone(batch.checkpoint)
-        self.assertEqual(len(batch.candidates), 10_000)
+        self.assertGreater(len(batch.candidates), 0)
+        self.assertLessEqual(len(batch.candidates), max_candidates)
+        self.assertLessEqual(batch.batch_extension_checks, max_checks)
+        # At least one explicit work budget must explain why this exact search paused.
+        self.assertTrue(
+            len(batch.candidates) == max_candidates
+            or batch.batch_extension_checks == max_checks
+        )
         candidate_ids = [candidate.section_ids for candidate in batch.candidates]
         self.assertEqual(len(candidate_ids), len(set(candidate_ids)))
 
