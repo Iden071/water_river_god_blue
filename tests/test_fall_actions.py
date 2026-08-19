@@ -6,7 +6,17 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from timetable_optimizer.catalog import ingest_catalog  # noqa: E402
-from timetable_optimizer.degree import Completion, DegreeState, qrm_single_major_2026  # noqa: E402
+from timetable_optimizer.degree import (  # noqa: E402
+    Completion,
+    CreditBucketRequirement,
+    DegreeScenario,
+    DegreeState,
+    KoreanMajorCreditCap,
+    MajorMode,
+    SecondMajorSpec,
+    SecondMajorStatus,
+    qrm_single_major_2026,
+)
 from timetable_optimizer.fall_actions import (  # noqa: E402
     FallActionError,
     FallRecognitionEvidence,
@@ -41,6 +51,29 @@ def row(section_id, course_code, *, time, department="Economics", language="한�
 
 def snapshot(*rows):
     return ingest_catalog(rows, source_name="fall-test", term="2026F")
+
+
+def cap_only_scenario():
+    """Minimal QRM-ME scenario used to isolate finite Korean-credit allocation semantics."""
+
+    return DegreeScenario(
+        scenario_id="fall-korean-cap-test",
+        graduation_min_credits=0.0,
+        major_mode=MajorMode.SINGLE,
+        qrm_major_credit_target=12.0,
+        requirements=(
+            CreditBucketRequirement(
+                requirement_id="qrm_me",
+                title="QRM Major Electives",
+                target_credits=12.0,
+                qualification_rule_id="qrm_me_2026",
+                counts_toward_qrm_major=True,
+            ),
+        ),
+        qrm_korean_credit_cap=KoreanMajorCreditCap(4, 12.0),
+        exclusive_major_assignment=True,
+        second_major=SecondMajorSpec(SecondMajorStatus.NONE),
+    )
 
 
 class FallAcademicActionTests(unittest.TestCase):
@@ -84,6 +117,25 @@ class FallAcademicActionTests(unittest.TestCase):
                 right.sections[0], left, qrm_single_major_2026(), DegreeState()
             )
 
+    def test_out_of_scenario_open_ended_decision_does_not_block_exact_action(self):
+        catalog = snapshot(row("A-01", "ECO1103", time="화3"))
+        generated = generate_fall_academic_actions(
+            catalog.sections[0],
+            catalog,
+            cap_only_scenario(),
+            DegreeState(),
+        )
+        # recognize_section still records the open-ended cc_scird decision for auditability,
+        # but cc_scird is not a requirement in this scenario and must not block qrm_me.
+        scird = [
+            decision
+            for decision in generated.recognition.decisions
+            if decision.requirement_id == "cc_scird"
+        ]
+        self.assertEqual(scird[0].status.value, "unresolved")
+        self.assertNotIn("cc_scird", generated.unresolved_requirement_ids)
+        self.assertTrue(generated.exact_recognition_ready)
+
 
 class FallDegreeTransitionBranchTests(unittest.TestCase):
     def test_korean_qrm_allowance_allocation_is_not_fixed_by_section_order(self):
@@ -91,7 +143,7 @@ class FallDegreeTransitionBranchTests(unittest.TestCase):
             row("A-01", "ECO1103", time="화3"),
             row("B-01", "ECO1104", time="수3"),
         )
-        scenario = qrm_single_major_2026()
+        scenario = cap_only_scenario()
         # Three of the four allowed Korean QRM-major course slots are already consumed.
         start = DegreeState(
             qrm_korean_major_claims=(
