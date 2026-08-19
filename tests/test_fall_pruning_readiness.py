@@ -149,7 +149,7 @@ class FallPruningReadinessTests(unittest.TestCase):
             {item.dimension for item in result.section_local_blockers},
         )
         self.assertIn(
-            "long_fixed_run_shape",
+            "long_fixed_run_delta_5",
             {item.dimension for item in result.timetable_profile_blockers},
         )
 
@@ -329,10 +329,11 @@ class FallPruningReadinessTests(unittest.TestCase):
 
     def test_missing_activatable_dimension_is_caught_even_if_profile_omits_it(self):
         item = section()
+        missing = "long_fixed_run_delta_5"
         values = tuple(
             exact_value(dimension, 0.0)
             for dimension in sorted(timetable_preference_dimension_contract())
-            if dimension != "long_fixed_run_shape"
+            if dimension != missing
         )
         result = audit_fall_pruning_readiness(
             universe(item),
@@ -343,7 +344,7 @@ class FallPruningReadinessTests(unittest.TestCase):
             global_course_utility_bounds=fall2026_course_utility_bounds(),
         )
         blockers = {item.dimension for item in result.timetable_profile_blockers}
-        self.assertEqual(blockers, {"long_fixed_run_shape"})
+        self.assertEqual(blockers, {missing})
         self.assertEqual(result.status, FallPruningReadinessStatus.PRESENT_BOUND_BLOCKED)
 
 
