@@ -5,15 +5,41 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from timetable_optimizer.course_preferences import ProfessorRatingBook  # noqa: E402
 from timetable_optimizer.degree import DegreeState  # noqa: E402
 from timetable_optimizer.degree_remainder import DegreeRemainder  # noqa: E402
+from timetable_optimizer.future_completion_search import (  # noqa: E402
+    FutureCompletionSearchResult,
+    FutureCompletionSearchStatus,
+)
+from timetable_optimizer.future_opportunities import (  # noqa: E402
+    FutureOffering,
+    FutureOfferingEvidence,
+    FutureOfferingEvidenceKind,
+    FutureOpportunityScenario,
+    FutureTermOpportunitySet,
+    OpportunitySetStatus,
+)
 from timetable_optimizer.future_optimization import (  # noqa: E402
+    FutureOptimizationStatus,
     FutureUtilityCandidate,
+    assess_future_completion_utility,
     build_safe_future_utility_frontiers,
 )
+from timetable_optimizer.future_problem import FuturePlanningProblem  # noqa: E402
 from timetable_optimizer.future_reachability import (  # noqa: E402
     FutureReachabilityWitness,
     FutureTermWitness,
+)
+from timetable_optimizer.future_scenarios import (  # noqa: E402
+    CampusAccessKind,
+    CampusAccessScenario,
+    FutureCatalogueBasis,
+    FutureCatalogueBasisKind,
+    FutureTermScenario,
+    FutureTimelineScenario,
+    ResidenceState,
+    TermActivity,
 )
 from timetable_optimizer.future_utility import (  # noqa: E402
     FutureTermUtilityAssessment,
@@ -22,6 +48,8 @@ from timetable_optimizer.future_utility import (  # noqa: E402
     TemporalUtilityWeight,
     aggregate_future_utility,
 )
+from timetable_optimizer.preferences import PreferenceProfile  # noqa: E402
+from timetable_optimizer.sections import NoListedSchedule  # noqa: E402
 from timetable_optimizer.timetable_utility import (  # noqa: E402
     PartialUtilityAssessment,
     UnresolvedUtilityDimension,
@@ -89,6 +117,84 @@ def candidate(candidate_id, term_values, *, unresolved=False):
     )
 
 
+def scenario_term(term_id):
+    return FutureTermScenario(
+        term_id=term_id,
+        activity=TermActivity.ACTIVE,
+        ordinary_credit_cap=18.0,
+        residence=ResidenceState.HOME,
+        campus_access=CampusAccessScenario(CampusAccessKind.ANY),
+        catalogue_basis=FutureCatalogueBasis(
+            FutureCatalogueBasisKind.EXPLICIT_SCENARIO
+        ),
+    )
+
+
+def scenario_offering(term_id):
+    return FutureOffering(
+        offering_id=f"{term_id}:A",
+        term_id=term_id,
+        course_code="A",
+        credits=3.0,
+        campus="국제",
+        schedule=NoListedSchedule("", ""),
+        professor="",
+        evidence=FutureOfferingEvidence(
+            FutureOfferingEvidenceKind.EXPLICIT_ASSUMPTION,
+            source_id=f"scenario:{term_id}:A",
+        ),
+    )
+
+
+def planning_problem():
+    terms = (scenario_term("2027S"), scenario_term("2027F"))
+    offerings = tuple(scenario_offering(term.term_id) for term in terms)
+    return FuturePlanningProblem(
+        problem_id="utility-status-test",
+        degree_remainder=DegreeRemainder("test", 3.0, ()),
+        timeline=FutureTimelineScenario("timeline", terms),
+        opportunities=FutureOpportunityScenario(
+            "opportunities",
+            tuple(
+                FutureTermOpportunitySet(
+                    term_id=offering.term_id,
+                    status=OpportunitySetStatus.EXPLICIT_SCENARIO,
+                    offerings=(offering,),
+                    source_id=f"scenario:{offering.term_id}",
+                )
+                for offering in offerings
+            ),
+        ),
+        blockers=(),
+    )
+
+
+def witness(*term_ids):
+    steps = tuple(
+        FutureTermWitness(
+            term_id,
+            (f"{term_id}:A",),
+            (f"action:{term_id}",),
+        )
+        for term_id in term_ids
+    )
+    return FutureReachabilityWitness(
+        steps=steps,
+        resulting_state=DegreeState(),
+        remainder=DegreeRemainder("test", 0.0, ()),
+    )
+
+
+def master_aggregation():
+    return TemporalUtilityAggregation(
+        source_id="user:temporal-policy",
+        weights=(
+            TemporalUtilityWeight("2027S", 1.0),
+            TemporalUtilityWeight("2027F", 1.0),
+        ),
+    )
+
+
 class FutureUtilityFrontierTests(unittest.TestCase):
     def test_only_strict_complete_bound_dominance_removes_candidate(self):
         strong = candidate("strong", (("2027S", 5.0, 7.0),))
@@ -152,6 +258,79 @@ class FutureUtilityFrontierTests(unittest.TestCase):
         only = candidate("only", (("2027S", 1.0, 2.0),))
         (frontier,) = build_safe_future_utility_frontiers((only,))
         self.assertEqual(frontier.unique_proven_best.candidate_id, "only")
+
+
+class FutureOptimizationStatusTests(unittest.TestCase):
+    def setUp(self):
+        self.problem = planning_problem()
+        self.profile = PreferenceProfile("empty")
+        self.professors = ProfessorRatingBook(())
+
+    def search(self, status, witnesses):
+        return FutureCompletionSearchResult(
+            status=status,
+            witnesses=tuple(witnesses),
+            explored_selections=0,
+            explored_bundles=0,
+            frontier_sizes=(),
+        )
+
+    def test_different_completion_terms_block_global_optimum_claim(self):
+        result = assess_future_completion_utility(
+            self.search(
+                FutureCompletionSearchStatus.COMPLETE,
+                (witness("2027S"), witness("2027S", "2027F")),
+            ),
+            self.problem,
+            self.profile,
+            self.professors,
+            master_aggregation(),
+        )
+
+        self.assertEqual(
+            result.status, FutureOptimizationStatus.HORIZON_INCOMPARABLE
+        )
+        self.assertIn(
+            "graduation_timing_utility_unresolved", result.blocker_codes
+        )
+        self.assertEqual(len(result.frontiers), 2)
+        self.assertFalse(result.optimum_proven)
+
+    def test_unresolved_future_utility_blocks_optimum_with_one_horizon(self):
+        result = assess_future_completion_utility(
+            self.search(
+                FutureCompletionSearchStatus.COMPLETE,
+                (witness("2027S"),),
+            ),
+            self.problem,
+            self.profile,
+            self.professors,
+            master_aggregation(),
+        )
+
+        self.assertEqual(
+            result.status, FutureOptimizationStatus.UTILITY_UNRESOLVED
+        )
+        self.assertIn("future_utility_unresolved", result.blocker_codes)
+        self.assertFalse(result.optimum_proven)
+
+    def test_incomplete_search_blocks_optimum_even_with_known_candidate(self):
+        result = assess_future_completion_utility(
+            self.search(
+                FutureCompletionSearchStatus.NODE_LIMIT,
+                (witness("2027S"),),
+            ),
+            self.problem,
+            self.profile,
+            self.professors,
+            master_aggregation(),
+        )
+
+        self.assertEqual(result.status, FutureOptimizationStatus.SEARCH_INCOMPLETE)
+        self.assertIn(
+            "completion_history_search_incomplete", result.blocker_codes
+        )
+        self.assertFalse(result.optimum_proven)
 
 
 if __name__ == "__main__":
