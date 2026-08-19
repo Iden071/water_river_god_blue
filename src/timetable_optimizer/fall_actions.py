@@ -240,10 +240,16 @@ def generate_fall_academic_actions(
         program_listings=snapshot.listings_for(section.section_id),
         evidence=course_evidence,
     )
+    scenario_requirement_ids = {
+        requirement.requirement_id for requirement in scenario.requirements
+    }
     unresolved = frozenset(
         decision.requirement_id
         for decision in recognition.decisions
-        if decision.status is QualificationStatus.UNRESOLVED
+        if (
+            decision.status is QualificationStatus.UNRESOLVED
+            and decision.requirement_id in scenario_requirement_ids
+        )
     )
     issues = tuple(
         FallActionIssue(
