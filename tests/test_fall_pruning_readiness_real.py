@@ -57,18 +57,20 @@ class RealFallPruningReadinessTests(unittest.TestCase):
             cls.partition.resolved_core_universe,
             fall2026_preference_profile(),
             cls.professor_ratings,
-            # There is intentionally no invented real Fall-vs-future temporal weight yet.
-            fall_weight=None,
+            # User confirmed intrinsic semester utility is time-neutral on 2026-08-19.
+            # Fall therefore has the same unit coefficient as any other academic term;
+            # future uncertainty/recourse is modeled separately, not as temporal discount.
+            fall_weight=1.0,
             registration_assessments=cls.registrations,
             global_course_utility_bounds=fall2026_course_utility_bounds(),
         )
 
-    def test_real_objective_remains_unresolved_without_temporal_weight(self):
+    def test_real_temporal_objective_is_defined_but_present_bound_is_still_blocked(self):
         self.assertEqual(
             self.readiness.status,
-            FallPruningReadinessStatus.OBJECTIVE_UNRESOLVED,
+            FallPruningReadinessStatus.PRESENT_BOUND_BLOCKED,
         )
-        self.assertFalse(self.readiness.objective_defined)
+        self.assertTrue(self.readiness.objective_defined)
 
     def test_user_course_envelopes_remove_intrinsic_course_blockers(self):
         by_dimension = {
@@ -79,6 +81,16 @@ class RealFallPruningReadinessTests(unittest.TestCase):
         self.assertEqual(
             by_dimension["registration_obtainability"].affected_section_count,
             len(self.partition.resolved_core_universe.included_sections),
+        )
+
+    def test_only_genuinely_activatable_timetable_gaps_remain(self):
+        self.assertEqual(
+            {item.dimension for item in self.readiness.timetable_profile_blockers},
+            {
+                "friday_event_window_free",
+                "long_fixed_run_shape",
+                "weekend_run_curvature",
+            },
         )
 
     def test_real_readiness_audit_counts_are_visible(self):
