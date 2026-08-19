@@ -67,6 +67,14 @@ from .degree_remainder import (
     degree_remainder,
 )
 from .fall2026_preferences import fall2026_preference_profile
+from .future_actions import (
+    FutureAcademicAction,
+    FutureActionError,
+    FutureActionGeneration,
+    FutureActionIssue,
+    FutureRecognitionEvidence,
+    generate_future_academic_actions,
+)
 from .future_opportunities import (
     FutureOffering,
     FutureOfferingEvidence,
@@ -82,6 +90,15 @@ from .future_problem import (
     FutureProblemError,
     build_future_planning_problem,
 )
+from .future_reachability import (
+    FutureReachabilityError,
+    FutureReachabilityResult,
+    FutureReachabilityStatus,
+    FutureReachabilityWitness,
+    FutureSearchUnknown,
+    FutureTermWitness,
+    search_future_degree_reachability,
+)
 from .future_scenarios import (
     CampusAccessKind,
     CampusAccessScenario,
@@ -92,6 +109,15 @@ from .future_scenarios import (
     FutureTimelineScenario,
     ResidenceState,
     TermActivity,
+)
+from .future_term_bundles import (
+    FutureTermBundle,
+    FutureTermBundleError,
+    FutureTermBundleGeneration,
+    FutureTermIssue,
+    FutureTermIssueStatus,
+    FutureTermLoadFacts,
+    generate_future_term_bundles,
 )
 from .history import (
     HistoricalTerm,
@@ -221,6 +247,10 @@ __all__ = [
     "DeliveryKind",
     "EstimateStatus",
     "FreshmanQuotaObservation",
+    "FutureAcademicAction",
+    "FutureActionError",
+    "FutureActionGeneration",
+    "FutureActionIssue",
     "FutureCatalogueBasis",
     "FutureCatalogueBasisKind",
     "FutureOffering",
@@ -231,9 +261,22 @@ __all__ = [
     "FuturePlanningProblem",
     "FutureProblemBlocker",
     "FutureProblemError",
+    "FutureReachabilityError",
+    "FutureReachabilityResult",
+    "FutureReachabilityStatus",
+    "FutureReachabilityWitness",
+    "FutureRecognitionEvidence",
     "FutureScenarioError",
+    "FutureSearchUnknown",
+    "FutureTermBundle",
+    "FutureTermBundleError",
+    "FutureTermBundleGeneration",
+    "FutureTermIssue",
+    "FutureTermIssueStatus",
+    "FutureTermLoadFacts",
     "FutureTermOpportunitySet",
     "FutureTermScenario",
+    "FutureTermWitness",
     "FutureTimelineScenario",
     "HistoricalMileageObservation",
     "HistoricalTerm",
@@ -320,6 +363,8 @@ __all__ = [
     "extract_travel_path_facts",
     "fall2026_preference_profile",
     "freshman_quota_observation_from_row",
+    "generate_future_academic_actions",
+    "generate_future_term_bundles",
     "historical_mileage_observation_from_row",
     "ingest_catalog",
     "ingest_history",
@@ -332,6 +377,7 @@ __all__ = [
     "qrm_double_major_shell_2026",
     "qrm_single_major_2026",
     "recognize_section",
+    "search_future_degree_reachability",
     "section_from_raw",
     "segment_blocks",
     "spring_2026_initial_state",
