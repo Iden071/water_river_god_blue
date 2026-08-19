@@ -83,15 +83,21 @@ class RealFallPruningReadinessTests(unittest.TestCase):
             len(self.partition.resolved_core_universe.included_sections),
         )
 
-    def test_only_genuinely_activatable_timetable_gaps_remain(self):
-        self.assertEqual(
-            {item.dimension for item in self.readiness.timetable_profile_blockers},
-            {
-                "friday_event_window_free",
-                "long_fixed_run_shape",
-                "weekend_run_curvature",
-            },
+    def test_only_three_conceptual_timetable_shape_families_remain(self):
+        dimensions = {
+            item.dimension for item in self.readiness.timetable_profile_blockers
+        }
+        expected = {"friday_event_window_free"}
+        expected.update(f"long_fixed_run_delta_{length}" for length in range(5, 16))
+        expected.update(
+            f"weekend_attached_presence_free_extra_total_{count}"
+            for count in range(2, 6)
         )
+        self.assertEqual(dimensions, expected)
+        # Raw state count is intentionally larger than conceptual blocker count: the model
+        # preserves nonlinear uncertainty instead of pretending one scalar controls every
+        # longer run or every additional weekend-attached weekday.
+        self.assertEqual(len(dimensions), 16)
 
     def test_real_readiness_audit_counts_are_visible(self):
         section_counts = {
@@ -101,12 +107,26 @@ class RealFallPruningReadinessTests(unittest.TestCase):
         timetable = tuple(
             blocker.dimension for blocker in self.readiness.timetable_profile_blockers
         )
+        conceptual = {
+            "friday_event": [d for d in timetable if d == "friday_event_window_free"],
+            "long_fixed_run_shape": [
+                d for d in timetable if d.startswith("long_fixed_run_delta_")
+            ],
+            "weekend_attached_run_shape": [
+                d
+                for d in timetable
+                if d.startswith("weekend_attached_presence_free_extra_total_")
+            ],
+        }
         print(
             "REAL_FALL_PRUNING_READINESS",
             {
                 "status": self.readiness.status.value,
                 "core_sections": self.readiness.core_section_count,
                 "section_local_blocker_counts": section_counts,
+                "timetable_profile_blocker_families": {
+                    key: len(value) for key, value in conceptual.items()
+                },
                 "timetable_profile_blockers": timetable,
             },
         )
