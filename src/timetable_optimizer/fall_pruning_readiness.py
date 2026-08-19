@@ -11,7 +11,7 @@ proof-safe numeric bounds.
 
 Two distinct issues remain separate:
 
-* objective definition: the Fall-vs-future temporal weight itself may not yet be elicited;
+* objective definition: the Fall-vs-future temporal weight itself may not yet be resolved;
 * objective boundedness: once Fall has positive weight, course/timetable/registration
   dimensions may still be unmeasured or heuristic rather than exact/bounded.
 
@@ -37,6 +37,7 @@ from .registration import (
     ObtainabilityStatus,
     RegistrationAssessment,
 )
+from .timetable_utility import timetable_preference_dimension_contract
 
 
 class FallPruningReadinessError(ValueError):
@@ -179,17 +180,26 @@ def audit_fall_pruning_readiness(
     """Report missing proof-safe Fall utility bounds without manufacturing numbers.
 
     The audit is conservative.  It only labels the *present* relaxed bound ready when every
-    represented scalar timetable preference is exact/bounded, there are no unresolved
-    qualitative relations in the current evaluator, and each selectable section's local
-    course/registration utility evidence is exact/bounded, explicitly resolved with a
-    proof-safe value, or covered by an elicited global course-utility envelope.
+    timetable dimension that the actual timetable evaluator can emit is exact/bounded (or
+    explicitly supplied with a proof-safe resolution), there are no relevant unresolved
+    qualitative relations, and each selectable section's local course/registration utility
+    evidence is exact/bounded, explicitly resolved with a proof-safe value, or covered by an
+    elicited global course-utility envelope.
+
+    Importantly, this function does **not** iterate over every preference-like value stored in
+    a broad profile.  Course workload, Chapel timing, registration risk, travel disutility,
+    target-credit ideas, and other layers are not timetable-geometry dimensions merely because
+    they appear in the same profile object.  Conversely, dynamically emitted timetable
+    dimensions (such as a >4-period fixed run) remain blockers if the profile forgot to declare
+    them.  The source of truth for this boundary is
+    :func:`timetable_preference_dimension_contract`.
 
     A global course envelope is a fallback bound for search relaxation, not a point rating.
     In particular, a bound on total professor-quality utility is sufficient for pruning even
     when the raw professor rating is absent: the branch can still be bounded without knowing
     where inside that envelope the professor actually lies.
 
-    If ``fall_weight`` is ``None``, the real temporal objective has not been elicited.  The
+    If ``fall_weight`` is ``None``, the temporal objective is unresolved for this call.  The
     function still reports the latent boundedness blockers so evidence collection can be
     targeted, but the top-level status remains ``OBJECTIVE_UNRESOLVED``.
     """
@@ -299,37 +309,61 @@ def audit_fall_pruning_readiness(
     if fall_weight is None:
         blockers.append(
             FallPruningBlockerFamily(
-                dimension="temporal_weight::2026F",
+                dimension=f"temporal_weight::{term_id}",
                 kind=FallPruningBlockerKind.OBJECTIVE,
                 reason=(
-                    "the real Fall-vs-future temporal weight has not been elicited; Stage 4 has no default equal/current-semester weight"
+                    "the Fall temporal weight was not supplied to this pruning audit"
                 ),
             )
         )
 
     # A relaxed bound over arbitrary descendants needs a defensible scalar bound for every
-    # represented timetable dimension that may become active.  Exact/bounded values qualify;
-    # unmeasured and heuristic values do not under current proof semantics.
-    for value in preference_profile.values:
+    # dimension the evaluator may emit, including dimensions that the profile forgot to
+    # declare.  Iterating over the profile itself would invert that dependency and can both
+    # create false blockers from unrelated placeholders and miss real dynamic dimensions.
+    timetable_contract = timetable_preference_dimension_contract()
+    profile_by_dimension = {
+        value.dimension_id: value for value in preference_profile.values
+    }
+    for dimension_id in sorted(timetable_contract):
+        if _explicit_resolution_available(dimension_id, resolutions):
+            continue
+        value = profile_by_dimension.get(dimension_id)
+        if value is None:
+            blockers.append(
+                FallPruningBlockerFamily(
+                    dimension=dimension_id,
+                    kind=FallPruningBlockerKind.TIMETABLE_PROFILE,
+                    reason=(
+                        "timetable evaluator can activate this dimension, but the current preference profile declares no evidence for it"
+                    ),
+                )
+            )
+            continue
         if not _proof_numeric(value):
             blockers.append(
                 FallPruningBlockerFamily(
                     dimension=value.dimension_id,
                     kind=FallPruningBlockerKind.TIMETABLE_PROFILE,
                     reason=(
-                        "timetable preference is "
+                        "activatable timetable preference is "
                         f"{value.estimate.status.value}, not an exact/bounded value usable in a proof-safe objective bound"
                     ),
                 )
             )
 
-    if preference_profile.relations:
+    relevant_relations = tuple(
+        relation
+        for relation in preference_profile.relations
+        if any(term.dimension_id in timetable_contract for term in relation.terms)
+    )
+    if relevant_relations:
         blockers.append(
             FallPruningBlockerFamily(
                 dimension="qualitative_timetable_relations",
                 kind=FallPruningBlockerKind.TIMETABLE_PROFILE,
                 reason=(
-                    "qualitative preference relations are preserved but the current relaxed-bound engine does not solve them into absolute admissible utility bounds"
+                    "qualitative relations touching activatable timetable dimensions are preserved but the current relaxed-bound engine does not solve them into absolute admissible utility bounds"
                 ),
             )
         )
