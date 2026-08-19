@@ -50,10 +50,15 @@ class TimetablePreferenceQuantityTests(unittest.TestCase):
         self.assertEqual(quantities["late_finish_period_9"], 1.0)
         self.assertEqual(quantities["rest_fixed_free_weekday"], 3.0)
         self.assertEqual(quantities["weekend_attached_presence_free_day"], 1.0)
-        self.assertEqual(quantities["weekend_run_curvature"], 1.0)
+        # Monday and Friday are both connected to the weekend around the weekly cycle.
+        # The extra value beyond the known first attached weekday is represented as one
+        # exact-state correction, not as one linear marginal unit.
+        self.assertEqual(
+            quantities["weekend_attached_presence_free_extra_total_2"], 1.0
+        )
         self.assertNotIn("dead_gap_quadratic_unit", quantities)
 
-    def test_non_four_gap_uses_confirmed_quadratic_curve_quantity(self):
+    def test_non_four_gap_and_long_run_preserve_known_anchor_plus_state_delta(self):
         sections = (
             section_from_raw(row("TEST1001-01-00", "화3,4,5,6,7")),
             section_from_raw(row("TEST1002-01-00", "수3,7")),
@@ -61,10 +66,29 @@ class TimetablePreferenceQuantityTests(unittest.TestCase):
         facts = extract_timetable_quality(sections)
         quantities = timetable_preference_quantities(facts)
 
-        self.assertEqual(quantities["long_fixed_run_shape"], 1.0)
+        # A five-period run contains the confirmed four-period anchor plus one unresolved
+        # state-specific correction.  No assumption says the correction is linear or even
+        # monotone with run length.
+        self.assertEqual(quantities["four_fixed_period_run"], 1.0)
+        self.assertEqual(quantities["long_fixed_run_delta_5"], 1.0)
         # 수3,7 leaves periods 4,5,6 as a three-period dead gap: l^2 = 9.
         self.assertEqual(quantities["dead_gap_quadratic_unit"], 9.0)
-        self.assertNotIn("four_fixed_period_run", quantities)
+
+    def test_different_long_run_lengths_are_not_collapsed_to_one_shape_scalar(self):
+        five = timetable_preference_quantities(
+            extract_timetable_quality(
+                (section_from_raw(row("FIVE-01-00", "화3,4,5,6,7")),)
+            )
+        )
+        six = timetable_preference_quantities(
+            extract_timetable_quality(
+                (section_from_raw(row("SIX-01-00", "화3,4,5,6,7,8")),)
+            )
+        )
+        self.assertIn("long_fixed_run_delta_5", five)
+        self.assertNotIn("long_fixed_run_delta_6", five)
+        self.assertIn("long_fixed_run_delta_6", six)
+        self.assertNotIn("long_fixed_run_delta_5", six)
 
 
 class PartialTimetableUtilityTests(unittest.TestCase):
@@ -84,19 +108,31 @@ class PartialTimetableUtilityTests(unittest.TestCase):
         self.assertEqual(assessment.measured_lower, 11.0)
         self.assertEqual(assessment.measured_upper, 19.0)
 
-        # The second weekend-attached day depends on unresolved curvature,
-        # and Friday-event value is also unmeasured. Therefore the interval
-        # above is not a whole-timetable bound.
+        # The exact two-attached-weekday state has an unresolved *extra-total* correction,
+        # and Friday-event value is also unmeasured. Therefore the interval above is not a
+        # whole-timetable bound.
         self.assertIsNone(assessment.complete_bounds)
         self.assertTrue(assessment.has_unresolved)
         self.assertIn(
-            "weekend_run_curvature",
+            "weekend_attached_presence_free_extra_total_2",
             assessment.unresolved_dimensions,
         )
         self.assertIn(
             "friday_event_window_free",
             assessment.unresolved_dimensions,
         )
+
+    def test_long_run_keeps_four_period_anchor_numeric_but_delta_unresolved(self):
+        sections = (
+            section_from_raw(row("TEST1001-01-00", "화3,4,5,6,7")),
+        )
+        assessment = evaluate_timetable_utility(
+            extract_timetable_quality(sections),
+            fall2026_preference_profile(),
+        )
+        contributions = {c.dimension_id: c for c in assessment.contributions}
+        self.assertEqual(contributions["four_fixed_period_run"].point, -8.0)
+        self.assertIn("long_fixed_run_delta_5", assessment.unresolved_dimensions)
 
     def test_four_period_gap_is_exact_from_confirmed_quadratic_curve(self):
         sections = (
