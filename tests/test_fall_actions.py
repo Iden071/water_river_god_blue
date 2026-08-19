@@ -16,6 +16,7 @@ from timetable_optimizer.degree import (  # noqa: E402
     SecondMajorSpec,
     SecondMajorStatus,
     qrm_single_major_2026,
+    spring_2026_initial_state,
 )
 from timetable_optimizer.fall_actions import (  # noqa: E402
     FallActionError,
@@ -25,14 +26,22 @@ from timetable_optimizer.fall_actions import (  # noqa: E402
 )
 
 
-def row(section_id, course_code, *, time, department="Economics", language="한국어"):
+def row(
+    section_id,
+    course_code,
+    *,
+    time,
+    department="Economics",
+    language="한국어",
+    credits=3,
+):
     return {
         "subjtnbCorsePrcts": section_id,
         "subjtnb": course_code,
         "subjtEngNm": course_code,
         "subjtNm": course_code,
         "campsDivNm": "국제",
-        "cdt": 3,
+        "cdt": credits,
         "cgprfNm": "Professor",
         "srclnLctreLangDivCd": "10",
         "srclnLctreLangDivNm": language,
@@ -135,6 +144,39 @@ class FallAcademicActionTests(unittest.TestCase):
         self.assertEqual(scird[0].status.value, "unresolved")
         self.assertNotIn("cc_scird", generated.unresolved_requirement_ids)
         self.assertTrue(generated.exact_recognition_ready)
+
+    def test_fall_2026_freshman_chapel_is_definitively_offline(self):
+        catalog = snapshot(
+            row(
+                "YCA1006-01-00",
+                "YCA1006",
+                time="화2",
+                department="Chapel",
+                credits=0.5,
+            )
+        )
+        scenario = qrm_single_major_2026()
+        state = spring_2026_initial_state(scenario)
+        generated = generate_fall_academic_actions(
+            catalog.sections[0],
+            catalog,
+            scenario,
+            state,
+        )
+
+        chapel_options = [
+            option for option in generated.recognition.options if option.effect.chapel_pass
+        ]
+        self.assertEqual(len(chapel_options), 1)
+        self.assertIs(chapel_options[0].effect.chapel_offline, True)
+        chapel_actions = [
+            action for action in generated.actions if action.effect and action.effect.chapel_pass
+        ]
+        self.assertEqual(len(chapel_actions), 1)
+        self.assertIs(chapel_actions[0].effect.chapel_offline, True)
+        self.assertEqual(chapel_actions[0].resulting_state.chapel.passes_completed, 2)
+        self.assertEqual(chapel_actions[0].resulting_state.chapel.offline_passes_min, 2)
+        self.assertEqual(chapel_actions[0].resulting_state.chapel.offline_passes_max, 2)
 
 
 class FallDegreeTransitionBranchTests(unittest.TestCase):
