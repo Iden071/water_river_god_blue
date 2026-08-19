@@ -113,8 +113,13 @@ def fall2026_preference_profile() -> PreferenceProfile:
         ),
         PreferenceValue(
             "late_finish_period_14",
-            PreferenceEstimate.unmeasured(),
-            label="22:50 finish",
+            PreferenceEstimate.exact(-12.980240898764906),
+            _derived(
+                "user-recalled-late-finish-curve-2026-08-19",
+                "Period-14 (22:50) finish value derived from the already-established late-finish curve recalled and accepted by the user.",
+                "Use LatePenalty(p)=-(p-8)^a with anchors period 9=-1 and period 13=-10. These imply a=ln(10)/ln(5)=1.4306765580733933, so period 14 gives -(6^a)=-12.980240898764906.",
+            ),
+            "22:50 finish",
         ),
         PreferenceValue(
             "four_period_hole",
