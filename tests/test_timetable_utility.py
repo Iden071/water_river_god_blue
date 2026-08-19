@@ -51,9 +51,9 @@ class TimetablePreferenceQuantityTests(unittest.TestCase):
         self.assertEqual(quantities["rest_fixed_free_weekday"], 3.0)
         self.assertEqual(quantities["weekend_attached_presence_free_day"], 1.0)
         self.assertEqual(quantities["weekend_run_curvature"], 1.0)
-        self.assertNotIn("dead_gap_shape", quantities)
+        self.assertNotIn("dead_gap_quadratic_unit", quantities)
 
-    def test_longer_runs_and_non_four_gaps_do_not_use_legacy_curves(self):
+    def test_non_four_gap_uses_confirmed_quadratic_curve_quantity(self):
         sections = (
             section_from_raw(row("TEST1001-01-00", "화3,4,5,6,7")),
             section_from_raw(row("TEST1002-01-00", "수3,7")),
@@ -62,9 +62,9 @@ class TimetablePreferenceQuantityTests(unittest.TestCase):
         quantities = timetable_preference_quantities(facts)
 
         self.assertEqual(quantities["long_fixed_run_shape"], 1.0)
-        self.assertEqual(quantities["dead_gap_shape"], 1.0)
+        # 수3,7 leaves periods 4,5,6 as a three-period dead gap: l^2 = 9.
+        self.assertEqual(quantities["dead_gap_quadratic_unit"], 9.0)
         self.assertNotIn("four_fixed_period_run", quantities)
-        self.assertNotIn("four_period_hole", quantities)
 
 
 class PartialTimetableUtilityTests(unittest.TestCase):
@@ -84,7 +84,7 @@ class PartialTimetableUtilityTests(unittest.TestCase):
         self.assertEqual(assessment.measured_lower, 11.0)
         self.assertEqual(assessment.measured_upper, 19.0)
 
-        # The second weekend-attached day depends on the unresolved curvature,
+        # The second weekend-attached day depends on unresolved curvature,
         # and Friday-event value is also unmeasured. Therefore the interval
         # above is not a whole-timetable bound.
         self.assertIsNone(assessment.complete_bounds)
@@ -98,7 +98,7 @@ class PartialTimetableUtilityTests(unittest.TestCase):
             assessment.unresolved_dimensions,
         )
 
-    def test_heuristic_gap_is_not_added_to_measured_interval(self):
+    def test_four_period_gap_is_exact_from_confirmed_quadratic_curve(self):
         sections = (
             section_from_raw(row("TEST1001-01-00", "화3,8")),
         )
@@ -107,16 +107,22 @@ class PartialTimetableUtilityTests(unittest.TestCase):
             fall2026_preference_profile(),
         )
 
-        # Periods 3 and 8 leave a four-period dead gap (4,5,6,7).
-        self.assertEqual(assessment.heuristic_point_delta, -10.0)
-        heuristic = [
-            c for c in assessment.contributions if c.dimension_id == "four_period_hole"
+        # Periods 3 and 8 leave a four-period gap (4,5,6,7):
+        # -0.625 * 4^2 = -10.
+        gap = [
+            c
+            for c in assessment.contributions
+            if c.dimension_id == "dead_gap_quadratic_unit"
         ]
-        self.assertEqual(len(heuristic), 1)
-        self.assertEqual(heuristic[0].status.value, "heuristic")
-        self.assertIsNone(assessment.complete_bounds)
+        self.assertEqual(len(gap), 1)
+        self.assertEqual(gap[0].quantity, 16.0)
+        self.assertEqual(gap[0].status.value, "exact")
+        self.assertEqual(gap[0].point, -10.0)
+        self.assertEqual(gap[0].lower, -10.0)
+        self.assertEqual(gap[0].upper, -10.0)
+        self.assertEqual(assessment.heuristic_point_delta, 0.0)
 
-    def test_active_qualitative_relation_is_reported(self):
+    def test_confirmed_meal_values_are_numeric_not_relations(self):
         sections = (
             section_from_raw(row("TEST1001-01-00", "화3,4,5,9,10,11")),
         )
@@ -125,12 +131,14 @@ class PartialTimetableUtilityTests(unittest.TestCase):
             fall2026_preference_profile(),
         )
 
-        self.assertIn("missing_lunch", assessment.unresolved_dimensions)
-        self.assertIn("missing_dinner", assessment.unresolved_dimensions)
-        labels = {relation.label for relation in assessment.active_relations}
-        self.assertIn("Dinner loss is worse than lunch loss", labels)
+        self.assertNotIn("missing_lunch", assessment.unresolved_dimensions)
+        self.assertNotIn("missing_dinner", assessment.unresolved_dimensions)
+        contributions = {c.dimension_id: c for c in assessment.contributions}
+        self.assertEqual(contributions["missing_lunch"].point, -6.0)
+        self.assertEqual(contributions["missing_dinner"].point, -8.0)
+        self.assertEqual(assessment.active_relations, ())
 
-    def test_22_50_relation_survives_without_fake_numeric_value(self):
+    def test_22_50_is_numeric_from_confirmed_late_finish_curve(self):
         sections = (
             section_from_raw(row("TEST1001-01-00", "화14")),
         )
@@ -139,9 +147,13 @@ class PartialTimetableUtilityTests(unittest.TestCase):
             fall2026_preference_profile(),
         )
 
-        self.assertIn("late_finish_period_14", assessment.unresolved_dimensions)
-        labels = {relation.label for relation in assessment.active_relations}
-        self.assertIn("22:50 finish worse than 21:50 anchor", labels)
+        self.assertNotIn("late_finish_period_14", assessment.unresolved_dimensions)
+        contributions = {c.dimension_id: c for c in assessment.contributions}
+        self.assertAlmostEqual(
+            contributions["late_finish_period_14"].point,
+            -12.980240898764906,
+        )
+        self.assertEqual(assessment.active_relations, ())
 
 
 if __name__ == "__main__":
