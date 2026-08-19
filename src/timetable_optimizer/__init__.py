@@ -119,6 +119,22 @@ from .future_term_bundles import (
     FutureTermLoadFacts,
     generate_future_term_bundles,
 )
+from .future_utility import (
+    AggregatedFutureUtility,
+    FutureOfferingPreferenceEvidence,
+    FutureTermUtilityAssessment,
+    FutureUtilityError,
+    FutureUtilityHistory,
+    TemporalUtilityAggregation,
+    TemporalUtilityWeight,
+    aggregate_future_utility,
+    assess_future_term_utility,
+)
+from .future_witness_utility import (
+    FutureWitnessUtilityAssessment,
+    FutureWitnessUtilityError,
+    assess_future_witness_utility,
+)
 from .history import (
     HistoricalTerm,
     HistorySnapshot,
@@ -191,6 +207,7 @@ from .timetable_quality import (
     TimetableQualityError,
     TimetableQualityFacts,
     extract_timetable_quality,
+    extract_timetable_quality_from_parsed_schedules,
 )
 from .timetable_utility import (
     PartialUtilityAssessment,
@@ -211,6 +228,7 @@ from .travel import (
 )
 
 __all__ = [
+    "AggregatedFutureUtility",
     "AnyOfRemainder",
     "AnyOfRequirement",
     "CHAPEL_2026_CODES",
@@ -256,6 +274,7 @@ __all__ = [
     "FutureOffering",
     "FutureOfferingEvidence",
     "FutureOfferingEvidenceKind",
+    "FutureOfferingPreferenceEvidence",
     "FutureOpportunityError",
     "FutureOpportunityScenario",
     "FuturePlanningProblem",
@@ -276,8 +295,13 @@ __all__ = [
     "FutureTermLoadFacts",
     "FutureTermOpportunitySet",
     "FutureTermScenario",
+    "FutureTermUtilityAssessment",
     "FutureTermWitness",
     "FutureTimelineScenario",
+    "FutureUtilityError",
+    "FutureUtilityHistory",
+    "FutureWitnessUtilityAssessment",
+    "FutureWitnessUtilityError",
     "HistoricalMileageObservation",
     "HistoricalTerm",
     "HistorySnapshot",
@@ -340,6 +364,8 @@ __all__ = [
     "SourceRef",
     "SpecificCourseRemainder",
     "SpecificCourseRequirement",
+    "TemporalUtilityAggregation",
+    "TemporalUtilityWeight",
     "TermActivity",
     "TimetableQualityError",
     "TimetableQualityFacts",
@@ -351,15 +377,19 @@ __all__ = [
     "UnresolvedUtilityDimension",
     "UtilityContribution",
     "YearQuotaGateStatus",
+    "aggregate_future_utility",
     "apply_recognition",
     "assess_candidate",
     "assess_freshman_registration",
+    "assess_future_term_utility",
+    "assess_future_witness_utility",
     "assess_section_course_preferences",
     "build_future_planning_problem",
     "classify_room_segment",
     "degree_remainder",
     "evaluate_timetable_utility",
     "extract_timetable_quality",
+    "extract_timetable_quality_from_parsed_schedules",
     "extract_travel_path_facts",
     "fall2026_preference_profile",
     "freshman_quota_observation_from_row",
