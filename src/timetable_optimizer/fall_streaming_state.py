@@ -4,11 +4,16 @@ The structural DFS checkpoint and the compact whole-plan accumulator are one log
 Advancing only one of them would make a resumed run either skip evaluated candidates or
 evaluate them twice.  This module stores both in one SQLite transaction.
 
+Two signatures are required:
+
+* ``search_signature`` binds the DFS to the exact Fall universe and load policy;
+* ``evaluation_signature`` binds accumulated whole-plan results to every model/objective
+  input that can change their meaning.
+
 The accumulator payload uses Python pickle because it contains nested immutable Stage 4
 objects and is intended only for a local, same-code search process.  Never open a database
 from an untrusted source: pickle is not a safe interchange format.  The structural checkpoint
-itself remains portable JSON and its search signature still binds it to the exact Fall
-universe/load policy.
+itself remains portable JSON.
 """
 
 from __future__ import annotations
@@ -27,20 +32,26 @@ from .fall_resumable_enumeration import (
     _ordered_sections,
     _search_signature,
 )
-from .fall_streaming_search import FallStreamingAccumulator
+from .fall_streaming_search import (
+    FallCandidateEvaluationContext,
+    FallStreamingAccumulator,
+)
 from .fall_universe import FallSectionUniverse
+from .model_fingerprint import model_fingerprint
+from .verification import VerificationSummary
 
 
 class FallStreamingStateError(ValueError):
-    """Persisted long-search state is corrupt or belongs to another exact search."""
+    """Persisted long-search state is corrupt or belongs to another exact search/model."""
 
 
-STATE_FORMAT_VERSION = 1
+STATE_FORMAT_VERSION = 2
 
 
 @dataclass(frozen=True)
 class PersistedFallStreamingState:
     search_signature: str
+    evaluation_signature: str
     checkpoint: FallEnumerationCheckpoint | None
     accumulator: FallStreamingAccumulator
     structural_status: FallResumableEnumerationStatus
@@ -59,6 +70,19 @@ def fall_streaming_search_signature(
     """Return the exact structural search signature used by resumable enumeration."""
 
     return _search_signature(universe, load_policy, _ordered_sections(universe))
+
+
+def fall_streaming_evaluation_signature(
+    context: FallCandidateEvaluationContext,
+    *,
+    verification: VerificationSummary | None = None,
+) -> str:
+    """Fingerprint every whole-plan input whose change invalidates an accumulated frontier."""
+
+    return model_fingerprint(
+        (context, verification),
+        contract="stage4e-fall-streaming-evaluation-v1",
+    )
 
 
 class FallStreamingStateStore:
@@ -83,6 +107,7 @@ class FallStreamingStateStore:
                     singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
                     format_version INTEGER NOT NULL,
                     search_signature TEXT NOT NULL,
+                    evaluation_signature TEXT NOT NULL,
                     checkpoint_json TEXT,
                     accumulator_pickle BLOB NOT NULL,
                     structural_status TEXT NOT NULL,
@@ -100,13 +125,14 @@ class FallStreamingStateStore:
         self,
         *,
         expected_search_signature: str,
+        expected_evaluation_signature: str,
     ) -> PersistedFallStreamingState | None:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT format_version, search_signature, checkpoint_json,
-                       accumulator_pickle, structural_status, committed_batches,
-                       updated_at_utc
+                SELECT format_version, search_signature, evaluation_signature,
+                       checkpoint_json, accumulator_pickle, structural_status,
+                       committed_batches, updated_at_utc
                   FROM stage4_fall_stream_state
                  WHERE singleton_id = 1
                 """
@@ -117,6 +143,7 @@ class FallStreamingStateStore:
         (
             format_version,
             search_signature,
+            evaluation_signature,
             checkpoint_json,
             accumulator_blob,
             structural_status_raw,
@@ -125,11 +152,15 @@ class FallStreamingStateStore:
         ) = row
         if int(format_version) != STATE_FORMAT_VERSION:
             raise FallStreamingStateError(
-                f"unsupported streaming-state format version {format_version}"
+                f"unsupported streaming-state format version {format_version}; reset the state DB"
             )
         if search_signature != expected_search_signature:
             raise FallStreamingStateError(
                 "persisted streaming state belongs to a different Fall universe/load policy"
+            )
+        if evaluation_signature != expected_evaluation_signature:
+            raise FallStreamingStateError(
+                "persisted streaming state belongs to a different degree/future/preference/evidence model"
             )
 
         checkpoint = None
@@ -170,6 +201,7 @@ class FallStreamingStateStore:
 
         return PersistedFallStreamingState(
             search_signature=search_signature,
+            evaluation_signature=evaluation_signature,
             checkpoint=checkpoint,
             accumulator=accumulator,
             structural_status=structural_status,
@@ -181,6 +213,7 @@ class FallStreamingStateStore:
         self,
         *,
         search_signature: str,
+        evaluation_signature: str,
         checkpoint: FallEnumerationCheckpoint | None,
         accumulator: FallStreamingAccumulator,
         structural_status: FallResumableEnumerationStatus,
@@ -188,8 +221,8 @@ class FallStreamingStateStore:
     ) -> PersistedFallStreamingState:
         """Atomically advance both structural and evaluation state by one consumed batch."""
 
-        if not search_signature.strip():
-            raise FallStreamingStateError("search_signature must be nonblank")
+        if not search_signature.strip() or not evaluation_signature.strip():
+            raise FallStreamingStateError("search/evaluation signatures must be nonblank")
         if previous_committed_batches < 0:
             raise FallStreamingStateError("previous_committed_batches cannot be negative")
         if checkpoint is not None and checkpoint.search_signature != search_signature:
@@ -223,16 +256,20 @@ class FallStreamingStateStore:
             connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
                 """
-                SELECT search_signature, committed_batches
+                SELECT search_signature, evaluation_signature, committed_batches
                   FROM stage4_fall_stream_state
                  WHERE singleton_id = 1
                 """
             ).fetchone()
             if existing is not None:
-                existing_signature, existing_batches = existing
-                if existing_signature != search_signature:
+                existing_search, existing_evaluation, existing_batches = existing
+                if existing_search != search_signature:
                     raise FallStreamingStateError(
-                        "cannot overwrite persisted state from a different exact search"
+                        "cannot overwrite persisted state from a different exact structural search"
+                    )
+                if existing_evaluation != evaluation_signature:
+                    raise FallStreamingStateError(
+                        "cannot overwrite persisted state from a different evaluation model"
                     )
                 if int(existing_batches) != previous_committed_batches:
                     raise FallStreamingStateError(
@@ -246,12 +283,14 @@ class FallStreamingStateStore:
             connection.execute(
                 """
                 INSERT INTO stage4_fall_stream_state (
-                    singleton_id, format_version, search_signature, checkpoint_json,
-                    accumulator_pickle, structural_status, committed_batches, updated_at_utc
-                ) VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+                    singleton_id, format_version, search_signature, evaluation_signature,
+                    checkpoint_json, accumulator_pickle, structural_status,
+                    committed_batches, updated_at_utc
+                ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(singleton_id) DO UPDATE SET
                     format_version = excluded.format_version,
                     search_signature = excluded.search_signature,
+                    evaluation_signature = excluded.evaluation_signature,
                     checkpoint_json = excluded.checkpoint_json,
                     accumulator_pickle = excluded.accumulator_pickle,
                     structural_status = excluded.structural_status,
@@ -261,6 +300,7 @@ class FallStreamingStateStore:
                 (
                     STATE_FORMAT_VERSION,
                     search_signature,
+                    evaluation_signature,
                     checkpoint_json,
                     sqlite3.Binary(accumulator_blob),
                     structural_status.value,
@@ -271,6 +311,7 @@ class FallStreamingStateStore:
 
         return PersistedFallStreamingState(
             search_signature=search_signature,
+            evaluation_signature=evaluation_signature,
             checkpoint=checkpoint,
             accumulator=accumulator,
             structural_status=structural_status,
