@@ -4,6 +4,7 @@ from pathlib import Path
 
 from timetable_optimizer.catalog import load_catalog_files
 from timetable_optimizer.course_preferences import parse_professor_ratings_csv
+from timetable_optimizer.fall2026_course_bounds import fall2026_course_utility_bounds
 from timetable_optimizer.fall2026_preferences import fall2026_preference_profile
 from timetable_optimizer.fall_local_hard_partition import (
     partition_fall_universe_by_local_hard_evidence,
@@ -59,6 +60,7 @@ class RealFallPruningReadinessTests(unittest.TestCase):
             # There is intentionally no invented real Fall-vs-future temporal weight yet.
             fall_weight=None,
             registration_assessments=cls.registrations,
+            global_course_utility_bounds=fall2026_course_utility_bounds(),
         )
 
     def test_real_objective_remains_unresolved_without_temporal_weight(self):
@@ -68,19 +70,15 @@ class RealFallPruningReadinessTests(unittest.TestCase):
         )
         self.assertFalse(self.readiness.objective_defined)
 
-    def test_every_resolved_core_section_still_lacks_professor_conversion_and_obtainability_bound(self):
+    def test_user_course_envelopes_remove_intrinsic_course_blockers(self):
         by_dimension = {
             blocker.dimension: blocker
             for blocker in self.readiness.section_local_blockers
         }
-        core_count = len(self.partition.resolved_core_universe.included_sections)
-        self.assertEqual(
-            by_dimension["professor_rating_to_utility"].affected_section_count,
-            core_count,
-        )
+        self.assertEqual(set(by_dimension), {"registration_obtainability"})
         self.assertEqual(
             by_dimension["registration_obtainability"].affected_section_count,
-            core_count,
+            len(self.partition.resolved_core_universe.included_sections),
         )
 
     def test_real_readiness_audit_counts_are_visible(self):
