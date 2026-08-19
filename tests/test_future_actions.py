@@ -8,6 +8,11 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from timetable_optimizer.catalog import ListingStatus  # noqa: E402
 from timetable_optimizer.degree import (  # noqa: E402
+    CreditBucketRequirement,
+    DegreeScenario,
+    DegreeState,
+    KoreanMajorCreditCap,
+    MajorMode,
     RecognitionEffect,
     SecondMajorSpec,
     SecondMajorStatus,
@@ -49,6 +54,27 @@ def offering(
             kind=FutureOfferingEvidenceKind.EXPLICIT_ASSUMPTION,
             source_id=f"scenario:{offering_id}",
         ),
+    )
+
+
+def cap_only_scenario():
+    return DegreeScenario(
+        scenario_id="future-korean-cap-test",
+        graduation_min_credits=0.0,
+        major_mode=MajorMode.SINGLE,
+        qrm_major_credit_target=12.0,
+        requirements=(
+            CreditBucketRequirement(
+                requirement_id="qrm_me",
+                title="QRM Major Electives",
+                target_credits=12.0,
+                qualification_rule_id="qrm_me_2026",
+                counts_toward_qrm_major=True,
+            ),
+        ),
+        qrm_korean_credit_cap=KoreanMajorCreditCap(4, 12.0),
+        exclusive_major_assignment=True,
+        second_major=SecondMajorSpec(SecondMajorStatus.NONE),
     )
 
 
@@ -242,6 +268,29 @@ class FutureRecognitionActionTests(unittest.TestCase):
             ("qrm_me", 3.0),
             generated.actions[0].effect.bucket_credit_claims,
         )
+
+    def test_out_of_scenario_open_ended_decision_does_not_block_exact_action(self):
+        generated = generate_future_academic_actions(
+            offering(
+                offering_id="2027S:eco1103",
+                course_code="ECO1103",
+            ),
+            cap_only_scenario(),
+            DegreeState(),
+            evidence=FutureRecognitionEvidence(
+                source_id="scenario:korean-econ",
+                departments=("Economics",),
+                korean_taught=True,
+            ),
+        )
+        scird = [
+            decision
+            for decision in generated.recognition.decisions
+            if decision.requirement_id == "cc_scird"
+        ]
+        self.assertEqual(scird[0].status.value, "unresolved")
+        self.assertNotIn("cc_scird", generated.unresolved_requirement_ids)
+        self.assertTrue(generated.exact_recognition_ready)
 
     def test_scenario_recognition_evidence_requires_provenance(self):
         with self.assertRaises(FutureActionError):
