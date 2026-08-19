@@ -328,10 +328,16 @@ def generate_future_academic_actions(
         evidence=course_evidence,
     )
 
+    scenario_requirement_ids = {
+        requirement.requirement_id for requirement in scenario.requirements
+    }
     unresolved = frozenset(
         decision.requirement_id
         for decision in recognition.decisions
-        if decision.status is QualificationStatus.UNRESOLVED
+        if (
+            decision.status is QualificationStatus.UNRESOLVED
+            and decision.requirement_id in scenario_requirement_ids
+        )
     )
     issues: list[FutureActionIssue] = [
         FutureActionIssue(issue.code, issue.message, issue.requirement_id)
