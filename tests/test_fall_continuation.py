@@ -220,11 +220,9 @@ class FallContinuationBridgeTests(unittest.TestCase):
         self.assertFalse(bridge.future_search_ready)
 
     def test_future_template_must_match_transition_starting_state(self):
-        other_start = DegreeState(
-            completions=self.end.completions,
-            satisfied_requirements=self.end.satisfied_requirements,
-        )
-        bad_template = future_template(self.scenario, other_start)
+        # Use the already advanced state as the template baseline.  The transition itself
+        # starts from the empty state, so this must be rejected as a mixed baseline.
+        bad_template = future_template(self.scenario, self.end)
         with self.assertRaises(FallContinuationError):
             build_fall_continuation_bridge(
                 "fall-a",
