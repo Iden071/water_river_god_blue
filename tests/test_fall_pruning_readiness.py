@@ -4,8 +4,10 @@ from timetable_optimizer.course_preferences import (
     ProfessorRatingBook,
     ProfessorRatingRecord,
 )
+from timetable_optimizer.fall2026_course_bounds import fall2026_course_utility_bounds
 from timetable_optimizer.fall_pruning_readiness import (
     FallPruningBlockerKind,
+    FallPruningReadinessError,
     FallPruningReadinessStatus,
     audit_fall_pruning_readiness,
 )
@@ -210,6 +212,65 @@ class FallPruningReadinessTests(unittest.TestCase):
             FallPruningReadinessStatus.PRESENT_BOUND_READY,
         )
         self.assertFalse(result.blocker_families)
+
+    def test_global_course_bounds_remove_intrinsic_course_blockers_without_faking_ratings(self):
+        item = section()
+        result = audit_fall_pruning_readiness(
+            universe(item),
+            PreferenceProfile("empty"),
+            ProfessorRatingBook(()),
+            fall_weight=1.0,
+            global_course_utility_bounds=fall2026_course_utility_bounds(),
+        )
+        dimensions = {item.dimension for item in result.section_local_blockers}
+        self.assertEqual(dimensions, {"registration_obtainability"})
+        self.assertEqual(
+            result.status,
+            FallPruningReadinessStatus.PRESENT_BOUND_BLOCKED,
+        )
+
+    def test_global_course_bounds_plus_bounded_registration_can_make_present_bound_ready(self):
+        item = section()
+        result = audit_fall_pruning_readiness(
+            universe(item),
+            PreferenceProfile("empty"),
+            ProfessorRatingBook(()),
+            fall_weight=1.0,
+            registration_assessments={"A": resolved_registration()},
+            global_course_utility_bounds=fall2026_course_utility_bounds(),
+        )
+        self.assertEqual(
+            result.status,
+            FallPruningReadinessStatus.PRESENT_BOUND_READY,
+        )
+        self.assertFalse(result.blocker_families)
+
+    def test_global_course_bound_typos_or_nonproof_values_are_rejected(self):
+        item = section()
+        with self.assertRaises(FallPruningReadinessError):
+            audit_fall_pruning_readiness(
+                universe(item),
+                PreferenceProfile("empty"),
+                ProfessorRatingBook(()),
+                fall_weight=1.0,
+                global_course_utility_bounds={
+                    "typo": bounded_value("typo", -1.0, 1.0)
+                },
+            )
+
+        heuristic = PreferenceValue(
+            "global_course_bound::workload",
+            PreferenceEstimate.heuristic(-2.0, lower=-15.0, upper=0.0),
+            provenance(),
+        )
+        with self.assertRaises(FallPruningReadinessError):
+            audit_fall_pruning_readiness(
+                universe(item),
+                PreferenceProfile("empty"),
+                ProfessorRatingBook(()),
+                fall_weight=1.0,
+                global_course_utility_bounds={"workload": heuristic},
+            )
 
     def test_heuristic_timetable_scalar_remains_proof_blocker(self):
         item = section()
