@@ -67,14 +67,16 @@ def exact_value(dimension_id, value):
 
 
 def complete_free_profile():
-    # An empty active timetable activates exactly these four dimensions.  Their values
-    # produce utility 5*1 + 1*2 + 4*0 + 1*3 = 10.
+    # An empty active timetable has all five weekdays fixed-free and all five attached to
+    # the weekend around the weekly cycle.  Its exact-state correction is explicit here;
+    # no linear weekend-curvature coefficient is assumed.  These values produce
+    # utility 5*1 + 1*2 + 1*0 + 1*3 = 10.
     return PreferenceProfile(
         "complete-free-profile",
         values=(
             exact_value("rest_fixed_free_weekday", 1.0),
             exact_value("weekend_attached_presence_free_day", 2.0),
-            exact_value("weekend_run_curvature", 0.0),
+            exact_value("weekend_attached_presence_free_extra_total_5", 0.0),
             exact_value("friday_event_window_free", 3.0),
         ),
     )
