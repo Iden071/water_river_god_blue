@@ -58,8 +58,12 @@ def fall2026_preference_profile() -> PreferenceProfile:
         ),
         PreferenceValue(
             "start_period_2_day",
-            PreferenceEstimate.unmeasured(),
-            label="10:00 start day",
+            PreferenceEstimate.exact(-5.0),
+            _user(
+                "user-confirmed-2026-08-19-period2",
+                "User explicitly confirmed a weekday beginning at period 2 (10:00) is worth -5 on the established preference scale, and clarified that the long-standing RULES.md unresolved flag was outdated.",
+            ),
+            "10:00 start day",
         ),
         PreferenceValue(
             "rest_fixed_free_weekday",
