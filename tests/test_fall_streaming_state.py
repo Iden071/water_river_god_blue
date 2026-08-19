@@ -32,6 +32,8 @@ from timetable_optimizer.fall_universe import (  # noqa: E402
 )
 from timetable_optimizer.sections import ParsedSchedule, Section  # noqa: E402
 
+EVALUATION_SIGNATURE = "fixture-evaluation-v1"
+
 
 def section(section_id, mask):
     schedule = ParsedSchedule(
@@ -105,6 +107,17 @@ def unresolved_evaluation(candidate: FallCandidateSet) -> FallCandidateEvaluatio
     )
 
 
+def commit(store, *, signature, batch, accumulator, previous):
+    return store.commit_batch(
+        search_signature=signature,
+        evaluation_signature=EVALUATION_SIGNATURE,
+        checkpoint=batch.checkpoint,
+        accumulator=accumulator,
+        structural_status=batch.status,
+        previous_committed_batches=previous,
+    )
+
+
 class StreamingStatePersistenceTests(unittest.TestCase):
     def test_restart_resume_preserves_checkpoint_and_accumulator_together(self):
         catalog = universe()
@@ -130,29 +143,17 @@ class StreamingStatePersistenceTests(unittest.TestCase):
             self.assertEqual(first.status, FallResumableEnumerationStatus.PAUSED)
             for candidate in first.candidates:
                 accumulator.add_evaluation(unresolved_evaluation(candidate))
-            store.commit_batch(
-                search_signature=signature,
-                checkpoint=first.checkpoint,
-                accumulator=accumulator,
-                structural_status=first.status,
-                previous_committed_batches=0,
-            )
+            commit(store, signature=signature, batch=first, accumulator=accumulator, previous=0)
 
-            # Simulate a fresh process: construct a new store and unpickle accumulator.
             reopened = FallStreamingStateStore(path).load(
-                expected_search_signature=signature
+                expected_search_signature=signature,
+                expected_evaluation_signature=EVALUATION_SIGNATURE,
             )
             self.assertIsNotNone(reopened)
             assert reopened is not None
             self.assertEqual(reopened.committed_batches, 1)
-            self.assertEqual(
-                reopened.accumulator.processed_fall_sets,
-                len(first.candidates),
-            )
-            self.assertEqual(
-                reopened.accumulator.unresolved_alternatives,
-                len(first.candidates),
-            )
+            self.assertEqual(reopened.accumulator.processed_fall_sets, len(first.candidates))
+            self.assertEqual(reopened.accumulator.unresolved_alternatives, len(first.candidates))
 
             checkpoint = reopened.checkpoint
             accumulator = reopened.accumulator
@@ -167,33 +168,30 @@ class StreamingStatePersistenceTests(unittest.TestCase):
                 )
                 for candidate in batch.candidates:
                     accumulator.add_evaluation(unresolved_evaluation(candidate))
-                state = store.commit_batch(
-                    search_signature=signature,
-                    checkpoint=batch.checkpoint,
+                state = commit(
+                    store,
+                    signature=signature,
+                    batch=batch,
                     accumulator=accumulator,
-                    structural_status=batch.status,
-                    previous_committed_batches=committed,
+                    previous=committed,
                 )
                 committed = state.committed_batches
                 checkpoint = state.checkpoint
                 if batch.status is FallResumableEnumerationStatus.COMPLETE:
                     break
 
-            final = store.load(expected_search_signature=signature)
+            final = store.load(
+                expected_search_signature=signature,
+                expected_evaluation_signature=EVALUATION_SIGNATURE,
+            )
             self.assertIsNotNone(final)
             assert final is not None
             self.assertTrue(final.complete)
             self.assertIsNone(final.checkpoint)
-            self.assertEqual(
-                final.accumulator.processed_fall_sets,
-                len(reference.candidates),
-            )
-            self.assertEqual(
-                final.accumulator.unresolved_alternatives,
-                len(reference.candidates),
-            )
+            self.assertEqual(final.accumulator.processed_fall_sets, len(reference.candidates))
+            self.assertEqual(final.accumulator.unresolved_alternatives, len(reference.candidates))
 
-    def test_search_signature_mismatch_is_rejected(self):
+    def test_search_or_evaluation_signature_mismatch_is_rejected(self):
         catalog = universe()
         load = policy()
         signature = fall_streaming_search_signature(catalog, load)
@@ -205,15 +203,23 @@ class StreamingStatePersistenceTests(unittest.TestCase):
                 max_emitted_candidates=1,
                 max_extension_checks=1,
             )
-            store.commit_batch(
-                search_signature=signature,
-                checkpoint=batch.checkpoint,
+            commit(
+                store,
+                signature=signature,
+                batch=batch,
                 accumulator=FallStreamingAccumulator(),
-                structural_status=batch.status,
-                previous_committed_batches=0,
+                previous=0,
             )
             with self.assertRaises(FallStreamingStateError):
-                store.load(expected_search_signature="different-search")
+                store.load(
+                    expected_search_signature="different-search",
+                    expected_evaluation_signature=EVALUATION_SIGNATURE,
+                )
+            with self.assertRaises(FallStreamingStateError):
+                store.load(
+                    expected_search_signature=signature,
+                    expected_evaluation_signature="different-evaluation-model",
+                )
 
     def test_stale_writer_cannot_overwrite_newer_committed_batch(self):
         catalog = universe()
@@ -227,12 +233,12 @@ class StreamingStatePersistenceTests(unittest.TestCase):
                 max_emitted_candidates=1,
                 max_extension_checks=1,
             )
-            state1 = store.commit_batch(
-                search_signature=signature,
-                checkpoint=first.checkpoint,
+            state1 = commit(
+                store,
+                signature=signature,
+                batch=first,
                 accumulator=FallStreamingAccumulator(),
-                structural_status=first.status,
-                previous_committed_batches=0,
+                previous=0,
             )
             second = enumerate_fall_candidate_batch(
                 catalog,
@@ -241,21 +247,50 @@ class StreamingStatePersistenceTests(unittest.TestCase):
                 max_emitted_candidates=1,
                 max_extension_checks=1,
             )
-            store.commit_batch(
-                search_signature=signature,
-                checkpoint=second.checkpoint,
+            commit(
+                store,
+                signature=signature,
+                batch=second,
                 accumulator=state1.accumulator,
-                structural_status=second.status,
-                previous_committed_batches=1,
+                previous=1,
             )
 
-            # A stale process that loaded batch 1 may not overwrite batch 2.
             with self.assertRaises(FallStreamingStateError):
                 store.commit_batch(
                     search_signature=signature,
+                    evaluation_signature=EVALUATION_SIGNATURE,
                     checkpoint=state1.checkpoint,
                     accumulator=state1.accumulator,
                     structural_status=state1.structural_status,
+                    previous_committed_batches=1,
+                )
+
+    def test_writer_cannot_change_evaluation_model_midstream(self):
+        catalog = universe()
+        load = policy()
+        signature = fall_streaming_search_signature(catalog, load)
+        with tempfile.TemporaryDirectory() as tempdir:
+            store = FallStreamingStateStore(Path(tempdir) / "state.sqlite3")
+            first = enumerate_fall_candidate_batch(
+                catalog,
+                load,
+                max_emitted_candidates=1,
+                max_extension_checks=1,
+            )
+            commit(
+                store,
+                signature=signature,
+                batch=first,
+                accumulator=FallStreamingAccumulator(),
+                previous=0,
+            )
+            with self.assertRaises(FallStreamingStateError):
+                store.commit_batch(
+                    search_signature=signature,
+                    evaluation_signature="changed-objective",
+                    checkpoint=first.checkpoint,
+                    accumulator=FallStreamingAccumulator(),
+                    structural_status=first.status,
                     previous_committed_batches=1,
                 )
 
@@ -271,15 +306,20 @@ class StreamingStatePersistenceTests(unittest.TestCase):
                 max_emitted_candidates=1,
                 max_extension_checks=1,
             )
-            store.commit_batch(
-                search_signature=signature,
-                checkpoint=batch.checkpoint,
+            commit(
+                store,
+                signature=signature,
+                batch=batch,
                 accumulator=FallStreamingAccumulator(),
-                structural_status=batch.status,
-                previous_committed_batches=0,
+                previous=0,
             )
             store.reset()
-            self.assertIsNone(store.load(expected_search_signature=signature))
+            self.assertIsNone(
+                store.load(
+                    expected_search_signature=signature,
+                    expected_evaluation_signature=EVALUATION_SIGNATURE,
+                )
+            )
 
 
 if __name__ == "__main__":
