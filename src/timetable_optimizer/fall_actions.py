@@ -19,7 +19,7 @@ physically impossible.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Mapping
 
 from .candidate_assessment import CandidateDegreeTransition
@@ -164,6 +164,35 @@ def _without_qrm_major_claims(
     )
 
 
+def _apply_fall2026_freshman_chapel_modality(
+    recognition: RecognitionAssessment,
+) -> RecognitionAssessment:
+    """Resolve current Fall Chapel modality from the governing freshman rule.
+
+    The Stage 4E Fall layer is specifically Fall 2026, when the user is a freshman.
+    The user manually confirmed that freshmen must take Chapel offline.  Therefore a
+    recognized current-semester Chapel action is definitively offline; this rule is not
+    projected onto later future semesters after freshman year.
+    """
+
+    options = []
+    for option in recognition.options:
+        if not option.effect.chapel_pass:
+            options.append(option)
+            continue
+        options.append(
+            replace(
+                option,
+                effect=replace(option.effect, chapel_offline=True),
+                reason=(
+                    option.reason
+                    + "; Fall 2026 freshman Chapel is required to be offline under the governing specification"
+                ),
+            )
+        )
+    return replace(recognition, options=tuple(options))
+
+
 def _validate_canonical_section(section: Section, snapshot: CatalogSnapshot) -> None:
     record = snapshot.record_for(section.section_id)
     if record is None or not record.usable or record.section is None:
@@ -240,6 +269,7 @@ def generate_fall_academic_actions(
         program_listings=snapshot.listings_for(section.section_id),
         evidence=course_evidence,
     )
+    recognition = _apply_fall2026_freshman_chapel_modality(recognition)
     scenario_requirement_ids = {
         requirement.requirement_id for requirement in scenario.requirements
     }
