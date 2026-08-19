@@ -143,13 +143,21 @@ def fall2026_preference_profile() -> PreferenceProfile:
         ),
         PreferenceValue(
             "missing_lunch",
-            PreferenceEstimate.unmeasured(),
-            label="Missing lunch window",
+            PreferenceEstimate.exact(-6.0),
+            _user(
+                "user-confirmed-2026-08-19-lunch",
+                "User explicitly reconfirmed the previously elicited missing-lunch value of -6 on the established preference scale.",
+            ),
+            "Missing lunch window",
         ),
         PreferenceValue(
             "missing_dinner",
-            PreferenceEstimate.unmeasured(),
-            label="Missing dinner window",
+            PreferenceEstimate.exact(-8.0),
+            _user(
+                "user-confirmed-2026-08-19-dinner",
+                "User explicitly reconfirmed the previously elicited missing-dinner value of -8 on the established preference scale.",
+            ),
+            "Missing dinner window",
         ),
         PreferenceValue(
             "friday_event_window_free",
@@ -194,19 +202,6 @@ def fall2026_preference_profile() -> PreferenceProfile:
     )
 
     relations = (
-        LinearPreferenceRelation(
-            terms=(
-                LinearPreferenceTerm("missing_dinner", 1.0),
-                LinearPreferenceTerm("missing_lunch", -1.0),
-            ),
-            relation=PreferenceRelationKind.LESS_THAN,
-            rhs=0.0,
-            provenance=_user(
-                "meal-dinner-vs-lunch",
-                "Missing dinner was described as somewhat worse than missing lunch.",
-            ),
-            label="Dinner loss is worse than lunch loss",
-        ),
         LinearPreferenceRelation(
             terms=(LinearPreferenceTerm("late_finish_period_14", 1.0),),
             relation=PreferenceRelationKind.LESS_THAN,
