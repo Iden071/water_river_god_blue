@@ -86,12 +86,17 @@ class RealFallResolvedCoreBitsetSmokeTests(unittest.TestCase):
             },
         )
 
-        # Reuse the exact candidates already generated above: no second search benchmark.
+        # Reuse a *small slice* of the exact candidates already generated above: no second
+        # search benchmark and no permanent 500k-candidate utility-analysis tax on every CI
+        # run.  A one-time 500k diagnostic was recorded separately in the Stage-4 diagnostic
+        # checkpoint; this recurring smoke only guards the exposure-audit code path.
+        #
         # The 12-credit floor is a diagnostic lens only, not a hard model constraint.  The
         # DFS prefix is explicitly non-representative, so counts below prove only that a shape
         # occurs in the exact family, not how common it is globally or whether it is optimal.
+        diagnostic_prefix = batch.candidates[:50_000]
         sensitivity = audit_candidate_shape_batch(
-            batch.candidates,
+            diagnostic_prefix,
             minimum_known_ordinary_credits=12.0,
         )
         self.assertFalse(sensitivity.representative)
