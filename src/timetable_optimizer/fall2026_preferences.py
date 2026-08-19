@@ -51,6 +51,14 @@ def _derived_late_finish(period: int, point: float) -> PreferenceValue:
     )
 
 
+def _unmeasured(dimension_id: str, label: str) -> PreferenceValue:
+    return PreferenceValue(
+        dimension_id,
+        PreferenceEstimate.unmeasured(),
+        label=label,
+    )
+
+
 def fall2026_preference_profile() -> PreferenceProfile:
     """Return the currently defensible Fall 2026 subjective evidence profile.
 
@@ -59,7 +67,7 @@ def fall2026_preference_profile() -> PreferenceProfile:
     dimensions whose magnitude was never established remain unmeasured.
     """
 
-    values = (
+    settled = (
         PreferenceValue(
             "start_period_1_day",
             PreferenceEstimate.exact(-10.0),
@@ -95,7 +103,7 @@ def fall2026_preference_profile() -> PreferenceProfile:
                 "First weekday added to the weekend-connected no-campus-presence run.",
                 "User valued a free Friday at two 09:00 starts (=20) while explicitly separating trip-home value from true rest. Subtracting the preserved rest bracket [6,8] gives trip value [12,14].",
             ),
-            "Weekend-attached campus-free day",
+            "First weekend-attached campus-free weekday",
         ),
         PreferenceValue(
             "four_fixed_period_run",
@@ -104,7 +112,7 @@ def fall2026_preference_profile() -> PreferenceProfile:
                 "R72-four-hour-run",
                 "User explicitly retained a four-hour consecutive fixed-time run at -8 on the 09:00-start anchor scale.",
             ),
-            "Four-period continuous run",
+            "Four-period continuous run anchor",
         ),
         PreferenceValue(
             "late_finish_period_9",
@@ -167,50 +175,40 @@ def fall2026_preference_profile() -> PreferenceProfile:
             ),
             "Missing dinner window",
         ),
-        PreferenceValue(
-            "friday_event_window_free",
-            PreferenceEstimate.unmeasured(),
-            label="Friday event window free",
-        ),
-        PreferenceValue(
-            "weekend_run_curvature",
-            PreferenceEstimate.unmeasured(),
-            label="Marginal value shape of additional weekend-connected free days",
-        ),
-        PreferenceValue(
-            "course_workload",
-            PreferenceEstimate.unmeasured(),
-            label="Course workload",
-        ),
-        PreferenceValue(
-            "course_difficulty_general",
-            PreferenceEstimate.unmeasured(),
-            label="General course difficulty",
-        ),
-        PreferenceValue(
-            "chapel_timing_advantage",
-            PreferenceEstimate.unmeasured(),
-            label="Timing advantage of completing Chapel now",
-        ),
-        PreferenceValue(
-            "registration_obtainability",
-            PreferenceEstimate.unmeasured(),
-            label="Registration obtainability",
-        ),
-        PreferenceValue(
-            "mixed_campus_travel_disutility",
-            PreferenceEstimate.unmeasured(),
-            label="Mixed-campus travel burden",
-        ),
-        PreferenceValue(
-            "target_credit_load_18",
-            PreferenceEstimate.unmeasured(),
-            label="Preference for an 18-credit academic load",
-        ),
+    )
+
+    # These are exact-state corrections, not a linear curve.  A 5+ period run first receives
+    # the confirmed four-period -8 anchor; the correction says how the exact longer state
+    # differs from that anchor.  Likewise the first weekend-attached no-campus weekday keeps
+    # its [12,14] value and each 2..5-day state has one total extra correction beyond it.
+    # Leaving these unresolved preserves nonlinear uncertainty without inventing a marginal
+    # coefficient.
+    nonlinear_state_unknowns = tuple(
+        _unmeasured(
+            f"long_fixed_run_delta_{length}",
+            f"Additional utility of a {length}-period continuous run relative to the confirmed four-period anchor",
+        )
+        for length in range(5, 16)
+    ) + tuple(
+        _unmeasured(
+            f"weekend_attached_presence_free_extra_total_{count}",
+            f"Total extra trip/home value of {count} weekend-attached campus-free weekdays beyond the first attached weekday",
+        )
+        for count in range(2, 6)
+    )
+
+    separate_or_unresolved = (
+        _unmeasured("friday_event_window_free", "Friday event window free"),
+        _unmeasured("course_workload", "Course workload"),
+        _unmeasured("course_difficulty_general", "General course difficulty"),
+        _unmeasured("chapel_timing_advantage", "Timing advantage of completing Chapel now"),
+        _unmeasured("registration_obtainability", "Registration obtainability"),
+        _unmeasured("mixed_campus_travel_disutility", "Mixed-campus travel burden"),
+        _unmeasured("target_credit_load_18", "Preference for an 18-credit academic load"),
     )
 
     return PreferenceProfile(
         profile_id="fall2026-vetted-stage4c",
-        values=values,
+        values=settled + nonlinear_state_unknowns + separate_or_unresolved,
         relations=(),
     )
