@@ -15,6 +15,7 @@ from timetable_optimizer.fall_local_hard_partition import (
 from timetable_optimizer.fall_registration_screening import (
     screen_fall_universe_for_freshman_registration,
 )
+from timetable_optimizer.fall_shape_batch_audit import audit_candidate_shape_batch
 from timetable_optimizer.fall_universe import build_fall_section_universe
 
 
@@ -82,6 +83,36 @@ class RealFallResolvedCoreBitsetSmokeTests(unittest.TestCase):
                 "candidates_per_second": round(len(batch.candidates) / elapsed, 1),
                 "root_remaining_count": root_remaining,
                 "max_selected_depth": depth,
+            },
+        )
+
+        # Reuse the exact candidates already generated above: no second search benchmark.
+        # The 12-credit floor is a diagnostic lens only, not a hard model constraint.  The
+        # DFS prefix is explicitly non-representative, so counts below prove only that a shape
+        # occurs in the exact family, not how common it is globally or whether it is optimal.
+        sensitivity = audit_candidate_shape_batch(
+            batch.candidates,
+            minimum_known_ordinary_credits=12.0,
+        )
+        self.assertFalse(sensitivity.representative)
+        self.assertFalse(sensitivity.proof_evidence)
+        self.assertGreater(sensitivity.candidates_evaluated, 0)
+        self.assertFalse(sensitivity.uncovered_archival_state_dimensions)
+        print(
+            "REAL_FALL_SHAPE_SENSITIVITY_PREFIX",
+            {
+                "warning": "exact DFS prefix; diagnostic only; not representative and not proof evidence",
+                "candidate_prefix_seen": sensitivity.candidates_seen,
+                "credit_floor_diagnostic_only": sensitivity.minimum_known_ordinary_credits,
+                "evaluated_after_floor": sensitivity.candidates_evaluated,
+                "below_floor": sensitivity.candidates_below_credit_floor,
+                "skipped_unresolved_schedule": sensitivity.candidates_skipped_unresolved_schedule,
+                "family_activation_counts": dict(sensitivity.family_activation_counts),
+                "active_state_counts": dict(sensitivity.state_activation_counts),
+                "maximum_archival_scenario_spread": round(
+                    sensitivity.maximum_archival_spread, 3
+                ),
+                "max_spread_example_section_ids": sensitivity.maximum_spread_section_ids,
             },
         )
 
