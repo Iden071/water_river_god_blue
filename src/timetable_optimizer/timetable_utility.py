@@ -111,6 +111,8 @@ def _add(quantities: dict[str, float], dimension_id: str, amount: float = 1.0) -
 
 
 _LATE_FINISH_PERIODS = tuple(range(9, 16))
+_LONG_FIXED_RUN_LENGTHS = tuple(range(5, 16))
+_WEEKEND_ATTACHED_DAY_COUNTS = tuple(range(2, 6))
 _TIMETABLE_PREFERENCE_DIMENSION_CONTRACT = frozenset(
     {
         "start_period_1_day",
@@ -118,13 +120,16 @@ _TIMETABLE_PREFERENCE_DIMENSION_CONTRACT = frozenset(
         "missing_lunch",
         "missing_dinner",
         "four_fixed_period_run",
-        "long_fixed_run_shape",
         "dead_gap_quadratic_unit",
         "rest_fixed_free_weekday",
         "weekend_attached_presence_free_day",
-        "weekend_run_curvature",
         "friday_event_window_free",
         *(f"late_finish_period_{period}" for period in _LATE_FINISH_PERIODS),
+        *(f"long_fixed_run_delta_{length}" for length in _LONG_FIXED_RUN_LENGTHS),
+        *(
+            f"weekend_attached_presence_free_extra_total_{count}"
+            for count in _WEEKEND_ATTACHED_DAY_COUNTS
+        ),
     }
 )
 
@@ -135,9 +140,16 @@ def timetable_preference_dimension_contract() -> frozenset[str]:
     This is a proof contract, not a list of every preference-like concept in the
     repository.  Course burden, Chapel timing, registration risk, travel disutility,
     and similar layers are intentionally absent because this evaluator never emits
-    them.  Conversely, dimensions produced dynamically by schedule geometry (for
-    example every possible late-finish period and the >4-period run shape) are
+    them.  Conversely, dimensions produced dynamically by schedule geometry are
     included even when the current preference profile forgot to declare them.
+
+    Nonlinear shapes are represented as *state-specific corrections*, not one fake
+    marginal coefficient.  A run of 5+ fixed periods receives the known four-period
+    anchor plus an unresolved correction for its exact length.  Likewise, the first
+    weekend-attached no-campus weekday retains its known value, while a state with
+    2..5 attached weekdays receives one unresolved extra-total correction for that
+    exact state.  This is an exact reparameterization: no linearity or curvature is
+    assumed merely to make the optimizer easier to write.
 
     A branch-bound readiness audit must use this contract rather than iterating over
     every value stored in a broad preference profile; otherwise it can both invent
@@ -173,10 +185,13 @@ def timetable_preference_quantities(facts: TimetableQualityFacts) -> dict[str, f
             _add(quantities, "missing_dinner")
 
         for run_length in day.fixed_runs:
-            if run_length == 4:
+            if run_length >= 4:
+                # Preserve the confirmed four-period anchor inside every longer state,
+                # then leave the exact additional effect of length 5+ unresolved.  This
+                # does not assume that longer runs are linearly worse (or even monotone).
                 _add(quantities, "four_fixed_period_run")
-            elif run_length > 4:
-                _add(quantities, "long_fixed_run_shape")
+                if run_length > 4:
+                    _add(quantities, f"long_fixed_run_delta_{run_length}")
 
         for hole_length in day.holes:
             if hole_length > 0:
@@ -196,14 +211,15 @@ def timetable_preference_quantities(facts: TimetableQualityFacts) -> dict[str, f
         0, facts.weekend_connected_presence_free_run - 2
     )
     if attached_presence_free_days:
-        # The first attached day has a defensible interval.  Additional days
-        # depend on the still-unresolved marginal-value shape.
+        # The first attached weekday has a defensible interval.  If more weekdays attach,
+        # retain that known component and represent the *total extra value beyond the first*
+        # for the exact state.  One scalar "curvature" times N would silently assume linear
+        # marginal value and cannot represent the older nonlinear evidence faithfully.
         _add(quantities, "weekend_attached_presence_free_day")
         if attached_presence_free_days > 1:
             _add(
                 quantities,
-                "weekend_run_curvature",
-                float(attached_presence_free_days - 1),
+                f"weekend_attached_presence_free_extra_total_{attached_presence_free_days}",
             )
 
     if facts.friday_event_window_free:
