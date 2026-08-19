@@ -18,6 +18,7 @@ from enum import Enum
 from typing import Mapping
 
 from .course_preferences import ProfessorRatingBook
+from .degree import DegreeScenario
 from .fall_continuation import FallContinuationBridge, FallContinuationStatus
 from .future_actions import FutureRecognitionEvidence
 from .future_completion_search import (
@@ -177,15 +178,7 @@ def _whole_candidate(
     lower = future.aggregate.measured_lower
     upper = future.aggregate.measured_upper
     heuristic = future.aggregate.heuristic_point_delta
-    unresolved = {
-        f"{term_id}::{dimension}"
-        for term_id in future.history.term_ids
-        for dimension in future.history.unresolved_dimensions
-        if not dimension.startswith(f"{term_id}::")
-    }
-    # Future aggregate already carries correctly scoped unresolved dimensions.  Prefer those
-    # directly; the comprehension above is only defensive for hand-built histories.
-    unresolved.update(future.aggregate.unresolved_dimensions)
+    unresolved = set(future.aggregate.unresolved_dimensions)
 
     if present_weight != 0.0:
         lower += present_weight * present.measured_lower
@@ -195,7 +188,7 @@ def _whole_candidate(
             f"{present.term_id}::{dimension}"
             for dimension in present.unresolved_dimensions
         )
-        if present.has_heuristics and present_weight != 0.0 and present.heuristic_point_delta == 0.0:
+        if present.has_heuristics and present.heuristic_point_delta == 0.0:
             # A zero-valued heuristic remains heuristic evidence rather than exact evidence.
             unresolved.add(f"{present.term_id}::heuristic_status")
 
@@ -284,7 +277,7 @@ def build_safe_whole_plan_frontiers(
 
 def assess_fall_candidate_whole_plan(
     bridge: FallContinuationBridge,
-    degree_scenario,
+    degree_scenario: DegreeScenario,
     preference_profile: PreferenceProfile,
     professor_ratings: ProfessorRatingBook,
     temporal_aggregation: TemporalUtilityAggregation,
@@ -299,17 +292,8 @@ def assess_fall_candidate_whole_plan(
 
     future_ids = _validate_whole_plan_aggregation(bridge, temporal_aggregation)
 
-    if bridge.status is FallContinuationStatus.FALL_INFEASIBLE:
-        return WholePlanOptimizationAssessment(
-            status=WholePlanOptimizationStatus.FALL_BLOCKED,
-            bridge=bridge,
-            future_search=None,
-            future_assessment=None,
-            candidates=(),
-            frontiers=(),
-            blocker_codes=bridge.blocker_codes,
-        )
     if bridge.status in {
+        FallContinuationStatus.FALL_INFEASIBLE,
         FallContinuationStatus.FALL_HARD_UNRESOLVED,
         FallContinuationStatus.DEGREE_TRANSITION_UNRESOLVED,
     }:
