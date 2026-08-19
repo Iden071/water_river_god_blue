@@ -1,30 +1,36 @@
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from timetable_optimizer.fall_candidate_sets import (
-    FallCandidateLoadFacts,
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from timetable_optimizer.fall_candidate_sets import (  # noqa: E402
     FallCandidateSet,
     FallLoadPolicy,
     enumerate_fall_candidate_sets,
 )
-from timetable_optimizer.fall_resumable_enumeration import (
+from timetable_optimizer.fall_resumable_enumeration import (  # noqa: E402
     FallResumableEnumerationStatus,
     enumerate_fall_candidate_batch,
 )
-from timetable_optimizer.fall_search import FallSearchUnknown
-from timetable_optimizer.fall_streaming_search import (
+from timetable_optimizer.fall_search import FallSearchUnknown  # noqa: E402
+from timetable_optimizer.fall_streaming_search import (  # noqa: E402
     FallCandidateEvaluation,
     FallCandidateEvaluationStatus,
     FallStreamingAccumulator,
 )
-from timetable_optimizer.fall_streaming_state import (
+from timetable_optimizer.fall_streaming_state import (  # noqa: E402
     FallStreamingStateError,
     FallStreamingStateStore,
     fall_streaming_search_signature,
 )
-from timetable_optimizer.fall_universe import FallSearchScope, FallSectionUniverse
-from timetable_optimizer.sections import ParsedSchedule, Section
+from timetable_optimizer.fall_universe import (  # noqa: E402
+    FallSearchScope,
+    FallSectionUniverse,
+)
+from timetable_optimizer.sections import ParsedSchedule, Section  # noqa: E402
 
 
 def section(section_id, mask):
@@ -124,7 +130,7 @@ class StreamingStatePersistenceTests(unittest.TestCase):
             self.assertEqual(first.status, FallResumableEnumerationStatus.PAUSED)
             for candidate in first.candidates:
                 accumulator.add_evaluation(unresolved_evaluation(candidate))
-            saved = store.commit_batch(
+            store.commit_batch(
                 search_signature=signature,
                 checkpoint=first.checkpoint,
                 accumulator=accumulator,
