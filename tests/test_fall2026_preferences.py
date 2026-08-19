@@ -74,10 +74,24 @@ class Fall2026PreferenceProfileTests(unittest.TestCase):
             EstimateStatus.HEURISTIC,
         )
 
-    def test_remaining_unresolved_dimensions_stay_unmeasured(self):
+    def test_nonlinear_shape_states_are_explicitly_unmeasured_not_collapsed(self):
+        for length in range(5, 16):
+            self.assertEqual(
+                self.profile.value(f"long_fixed_run_delta_{length}").estimate.status,
+                EstimateStatus.UNMEASURED,
+            )
+        for count in range(2, 6):
+            self.assertEqual(
+                self.profile.value(
+                    f"weekend_attached_presence_free_extra_total_{count}"
+                ).estimate.status,
+                EstimateStatus.UNMEASURED,
+            )
+        self.assertNotIn("weekend_run_curvature", self.profile.unmeasured_dimensions)
+
+    def test_separate_non_timetable_placeholders_remain_unmeasured(self):
         expected = {
             "friday_event_window_free",
-            "weekend_run_curvature",
             "course_workload",
             "course_difficulty_general",
             "chapel_timing_advantage",
