@@ -4,6 +4,13 @@ The reachability solver and utility evaluator deliberately remain separate.  A r
 witness proves an institutional path under the explicit future scenario; this module maps
 that exact selected-offering history back onto the scenario's opportunity sets and evaluates
 each academic term without changing the witness or its DegreeState transitions.
+
+A reachability witness may end before the planning horizon when the degree is completed
+early.  In that case the witness must be an exact *prefix* of the timeline.  Terms after
+degree completion are not fabricated as empty academic timetables: doing so would turn
+post-graduation non-participation into artificial free-day utility.  Comparison of histories
+with different completion horizons therefore remains a later preference question unless
+graduation timing is explicitly valued.
 """
 
 from __future__ import annotations
@@ -30,6 +37,10 @@ class FutureWitnessUtilityAssessment:
     witness: FutureReachabilityWitness
     utility_history: FutureUtilityHistory
 
+    @property
+    def completion_term_id(self) -> str | None:
+        return self.utility_history.term_ids[-1] if self.utility_history.term_ids else None
+
 
 def assess_future_witness_utility(
     problem: FuturePlanningProblem,
@@ -41,13 +52,18 @@ def assess_future_witness_utility(
     workload_utility: Mapping[str, PreferenceValue] | None = None,
     difficulty_utility: Mapping[str, PreferenceValue] | None = None,
 ) -> FutureWitnessUtilityAssessment:
-    """Evaluate the selected offerings in one concrete finite reachability witness."""
+    """Evaluate the selected offerings in one concrete finite reachability witness.
+
+    ``witness.steps`` must match the planning timeline from its first term through the term
+    in which the witness completes the degree.  It may be shorter than the full timeline,
+    but it may not skip, reorder, or start after timeline terms.
+    """
 
     timeline_ids = tuple(term.term_id for term in problem.timeline.terms)
     witness_ids = tuple(step.term_id for step in witness.steps)
-    if witness_ids != timeline_ids:
+    if len(witness_ids) > len(timeline_ids) or witness_ids != timeline_ids[: len(witness_ids)]:
         raise FutureWitnessUtilityError(
-            "reachability witness term sequence does not match future planning timeline"
+            "reachability witness term sequence must be an exact prefix of the future planning timeline"
         )
 
     term_assessments = []
