@@ -44,7 +44,9 @@ class DegreeRemainderTests(unittest.TestCase):
         chapel = remainder.requirement("cc_chapel")
         self.assertIsInstance(chapel, ChapelRemainder)
         self.assertEqual(chapel.remaining_passes, 3)
-        self.assertEqual(chapel.offline_passes_required, 0)
+        self.assertEqual(chapel.offline_passes_required, 2)
+        self.assertEqual(chapel.offline_passes_min, 1)
+        self.assertEqual(chapel.offline_passes_max, 1)
 
         language = remainder.requirement("cc_language")
         self.assertIsInstance(language, CreditBucketRemainder)
