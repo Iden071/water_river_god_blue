@@ -34,13 +34,24 @@ class Fall2026PreferenceProfileTests(unittest.TestCase):
                 point,
             )
 
-    def test_2250_is_derived_from_confirmed_late_finish_curve(self):
-        value = self.profile.value("late_finish_period_14")
-        self.assertAlmostEqual(
-            value.estimate.require_exact(),
-            -12.980240898764906,
-        )
-        self.assertEqual(value.provenance.source_kind, PreferenceSourceKind.DERIVED)
+    def test_derived_late_finish_curve_covers_every_dynamic_period(self):
+        expected = {
+            10: -2.695731032073513,
+            11: -4.815109795572117,
+            12: -7.266965797284128,
+            14: -12.980240898764906,
+            15: -16.183108844566643,
+        }
+        for period, point in expected.items():
+            value = self.profile.value(f"late_finish_period_{period}")
+            self.assertAlmostEqual(value.estimate.require_exact(), point)
+            self.assertEqual(value.provenance.source_kind, PreferenceSourceKind.DERIVED)
+
+        for period in range(9, 16):
+            self.assertEqual(
+                self.profile.value(f"late_finish_period_{period}").estimate.status,
+                EstimateStatus.EXACT,
+            )
 
     def test_confirmed_quadratic_gap_curve_is_proof_numeric(self):
         gap = self.profile.value("dead_gap_quadratic_unit")
@@ -76,7 +87,10 @@ class Fall2026PreferenceProfileTests(unittest.TestCase):
         }
         self.assertTrue(expected <= self.profile.unmeasured_dimensions)
         self.assertNotIn("start_period_2_day", self.profile.unmeasured_dimensions)
-        self.assertNotIn("late_finish_period_14", self.profile.unmeasured_dimensions)
+        for period in range(9, 16):
+            self.assertNotIn(
+                f"late_finish_period_{period}", self.profile.unmeasured_dimensions
+            )
         self.assertNotIn("missing_lunch", self.profile.unmeasured_dimensions)
         self.assertNotIn("missing_dinner", self.profile.unmeasured_dimensions)
 
