@@ -149,7 +149,26 @@ class FutureWitnessUtilityBridgeTests(unittest.TestCase):
         self.assertTrue(history.terms[0].academic_utility_applicable)
         self.assertFalse(history.terms[1].academic_utility_applicable)
 
-    def test_witness_term_sequence_must_match_planning_timeline(self):
+    def test_early_completion_witness_may_be_timeline_prefix(self):
+        early = FutureReachabilityWitness(
+            steps=(
+                FutureTermWitness(
+                    "2027S", ("2027S:qrm1001",), ("action",)
+                ),
+            ),
+            resulting_state=self.state,
+            remainder=self.remainder,
+        )
+        result = assess_future_witness_utility(
+            self.problem,
+            early,
+            PreferenceProfile("empty"),
+            ProfessorRatingBook(()),
+        )
+        self.assertEqual(result.utility_history.term_ids, ("2027S",))
+        self.assertEqual(result.completion_term_id, "2027S")
+
+    def test_witness_term_sequence_must_be_timeline_prefix(self):
         bad = FutureReachabilityWitness(
             steps=(FutureTermWitness("military", (), ()),),
             resulting_state=self.state,
