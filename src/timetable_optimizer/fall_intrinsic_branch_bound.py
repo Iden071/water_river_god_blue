@@ -5,7 +5,9 @@ change the candidate family and it does not prune anything by itself.
 
 The bound is deliberately relaxed:
 
-* negative timetable features may disappear in the relaxation, contributing at most zero;
+* optional adverse timetable features may disappear in the relaxation;
+* every activatable geometry dimension has an explicit safe quantity cap, so correctness does
+  not depend on a label such as "penalty" or on the current sign of its utility estimate;
 * positive free-day/trip features use monotonic information from the already-selected prefix
   when every selected schedule is parsed, otherwise the global weekly maximum is used;
 * positive unresolved timetable shapes are usable only after explicit proof-safe upper bounds
@@ -41,6 +43,7 @@ from .preferences import PreferenceProfile, PreferenceValue
 from .recognition import CHAPEL_2026_CODES
 from .sections import ParsedSchedule, Section
 from .timetable_quality import extract_timetable_quality
+from .timetable_utility import timetable_preference_dimension_contract
 
 
 class FallIntrinsicBranchBoundError(ValueError):
@@ -156,8 +159,8 @@ def _upper_map(bounds: tuple[ProofUpperBound, ...]) -> dict[str, float]:
 
 
 def _positive(upper: float) -> float:
-    # An optional adverse feature can be absent in the relaxation.  Only a positive maximum
-    # can raise the best possible descendant value.
+    # Optional absence gives utility 0, so only positive upper endpoints can increase an
+    # optimistic relaxation.  This is a mathematical max, not a semantic penalty assumption.
     return max(0.0, upper)
 
 
@@ -170,12 +173,12 @@ def _trip_upper_for_attached_at_most(
     first = _positive(upper_by_dimension["weekend_attached_presence_free_day"])
     best = first
     for count in range(2, min(5, attached_max) + 1):
-        extra = _positive(
-            upper_by_dimension[
-                f"weekend_attached_presence_free_extra_total_{count}"
-            ]
-        )
-        best = max(best, first + extra)
+        # Exactly one count-state can occur in a final timetable.  Take the best state rather
+        # than summing mutually exclusive corrections.
+        extra = upper_by_dimension[
+            f"weekend_attached_presence_free_extra_total_{count}"
+        ]
+        best = max(best, first + extra, 0.0)
     return best
 
 
@@ -197,10 +200,70 @@ def _long_run_positive_relaxation(upper_by_dimension: Mapping[str, float]) -> fl
     return total
 
 
+def _other_geometry_positive_relaxation(
+    upper_by_dimension: Mapping[str, float],
+) -> float:
+    """Cap all non-free-day, non-long-run activatable dimensions explicitly.
+
+    These caps are intentionally loose and may sum mutually incompatible states.  They exist
+    so admissibility never depends on the current sign of a preference value.
+
+    * start-at-period-1 / start-at-period-2: at most five weekdays each;
+    * lunch / dinner fully blocked: at most five weekdays each;
+    * four-period anchor: at most three disjoint >=4 runs per 15-period day -> 15/week;
+    * dead-gap quadratic quantity: max 13^2 per day (periods 1 and 15 occupied) -> 845/week;
+    * each exact late-finish period: at most five weekdays.
+    """
+
+    capacities: dict[str, float] = {
+        "start_period_1_day": 5.0,
+        "start_period_2_day": 5.0,
+        "missing_lunch": 5.0,
+        "missing_dinner": 5.0,
+        "four_fixed_period_run": 15.0,
+        "dead_gap_quadratic_unit": 845.0,
+    }
+    capacities.update({f"late_finish_period_{period}": 5.0 for period in range(9, 16)})
+    return sum(
+        capacity * _positive(upper_by_dimension[dimension])
+        for dimension, capacity in capacities.items()
+    )
+
+
+def _validate_geometry_contract_accounted_for() -> None:
+    explicit = {
+        "rest_fixed_free_weekday",
+        "weekend_attached_presence_free_day",
+        "friday_event_window_free",
+        "start_period_1_day",
+        "start_period_2_day",
+        "missing_lunch",
+        "missing_dinner",
+        "four_fixed_period_run",
+        "dead_gap_quadratic_unit",
+        *(f"late_finish_period_{period}" for period in range(9, 16)),
+        *(f"long_fixed_run_delta_{length}" for length in range(5, 16)),
+        *(
+            f"weekend_attached_presence_free_extra_total_{count}"
+            for count in range(2, 6)
+        ),
+    }
+    contract = timetable_preference_dimension_contract()
+    missing = contract - explicit
+    extra = explicit - contract
+    if missing or extra:
+        raise FallIntrinsicBranchBoundError(
+            "branch timetable relaxation is out of sync with activation contract: "
+            f"missing={sorted(missing)}, extra={sorted(extra)}"
+        )
+
+
 def _timetable_upper_bound(
     selected_sections: tuple[Section, ...],
     upper_by_dimension: Mapping[str, float],
 ) -> tuple[float, bool]:
+    _validate_geometry_contract_accounted_for()
+
     parsed = all(isinstance(section.schedule, ParsedSchedule) for section in selected_sections)
     if parsed:
         facts = extract_timetable_quality(selected_sections)
@@ -229,11 +292,12 @@ def _timetable_upper_bound(
         else 0.0
     )
     long_run_upper = _long_run_positive_relaxation(upper_by_dimension)
+    other_upper = _other_geometry_positive_relaxation(upper_by_dimension)
 
-    # Every remaining activatable timetable dimension either has a nonpositive upper endpoint
-    # in the current proof profile (starts, late finishes, meal loss, 4-run anchor, gaps) or is
-    # represented above.  Omitting those adverse features is an optimistic relaxation.
-    return rest_upper + trip_upper + friday_upper + long_run_upper, used_global
+    return (
+        rest_upper + trip_upper + friday_upper + long_run_upper + other_upper,
+        used_global,
+    )
 
 
 def derive_fall_intrinsic_branch_upper_bound(
