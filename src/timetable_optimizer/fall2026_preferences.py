@@ -3,19 +3,16 @@
 This file is intentionally conservative.  It does not import the legacy ranking
 constants as authority.  Instead it re-expresses only preference evidence that
 survives the Stage 2/3 audit and current SPEC, preserving intervals, heuristics,
-qualitative relations, and unresolved dimensions rather than freezing every
-historical midpoint into a scalar score.
+and unresolved dimensions rather than freezing every historical midpoint into
+a scalar score.
 """
 
 from __future__ import annotations
 
 from .preferences import (
-    LinearPreferenceRelation,
-    LinearPreferenceTerm,
     PreferenceEstimate,
     PreferenceProfile,
     PreferenceProvenance,
-    PreferenceRelationKind,
     PreferenceSourceKind,
     PreferenceValue,
 )
@@ -122,14 +119,14 @@ def fall2026_preference_profile() -> PreferenceProfile:
             "22:50 finish",
         ),
         PreferenceValue(
-            "four_period_hole",
-            PreferenceEstimate.heuristic(-10.0),
+            "dead_gap_quadratic_unit",
+            PreferenceEstimate.exact(-0.625),
             _derived(
-                "R66-four-hole",
-                "A four-period dead gap was described as approximately as bad as one 09:00 start.",
-                "Map the approximate equality to the established -10 anchor, retaining HEURISTIC rather than EXACT status.",
+                "user-confirmed-gap-curve-2026-08-19",
+                "User reconfirmed the previously established quadratic dead-gap curve.",
+                "GapPenalty(l)=-10*(l/4)^2 = -0.625*l^2. The timetable evaluator supplies l^2 as the quantity for each observed dead gap, so one utility unit is -0.625.",
             ),
-            "Four-period dead gap",
+            "Quadratic dead-gap unit",
         ),
         PreferenceValue(
             "hard_language_course",
@@ -201,21 +198,8 @@ def fall2026_preference_profile() -> PreferenceProfile:
         ),
     )
 
-    relations = (
-        LinearPreferenceRelation(
-            terms=(LinearPreferenceTerm("late_finish_period_14", 1.0),),
-            relation=PreferenceRelationKind.LESS_THAN,
-            rhs=-10.0,
-            provenance=_user(
-                "late-finish-22-50",
-                "A period-14 (22:50) finish was stated to be worse than -10.",
-            ),
-            label="22:50 finish worse than 21:50 anchor",
-        ),
-    )
-
     return PreferenceProfile(
         profile_id="fall2026-vetted-stage4c",
         values=values,
-        relations=relations,
+        relations=(),
     )
