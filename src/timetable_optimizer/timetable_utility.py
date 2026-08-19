@@ -110,6 +110,43 @@ def _add(quantities: dict[str, float], dimension_id: str, amount: float = 1.0) -
     quantities[dimension_id] = quantities.get(dimension_id, 0.0) + amount
 
 
+_LATE_FINISH_PERIODS = tuple(range(9, 16))
+_TIMETABLE_PREFERENCE_DIMENSION_CONTRACT = frozenset(
+    {
+        "start_period_1_day",
+        "start_period_2_day",
+        "missing_lunch",
+        "missing_dinner",
+        "four_fixed_period_run",
+        "long_fixed_run_shape",
+        "dead_gap_quadratic_unit",
+        "rest_fixed_free_weekday",
+        "weekend_attached_presence_free_day",
+        "weekend_run_curvature",
+        "friday_event_window_free",
+        *(f"late_finish_period_{period}" for period in _LATE_FINISH_PERIODS),
+    }
+)
+
+
+def timetable_preference_dimension_contract() -> frozenset[str]:
+    """Return every subjective dimension this timetable evaluator may activate.
+
+    This is a proof contract, not a list of every preference-like concept in the
+    repository.  Course burden, Chapel timing, registration risk, travel disutility,
+    and similar layers are intentionally absent because this evaluator never emits
+    them.  Conversely, dimensions produced dynamically by schedule geometry (for
+    example every possible late-finish period and the >4-period run shape) are
+    included even when the current preference profile forgot to declare them.
+
+    A branch-bound readiness audit must use this contract rather than iterating over
+    every value stored in a broad preference profile; otherwise it can both invent
+    false blockers and miss real activatable ones.
+    """
+
+    return _TIMETABLE_PREFERENCE_DIMENSION_CONTRACT
+
+
 def timetable_preference_quantities(facts: TimetableQualityFacts) -> dict[str, float]:
     """Translate observable timetable facts into declared preference dimensions.
 
