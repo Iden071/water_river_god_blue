@@ -94,6 +94,13 @@ from .fall_continuation import (
     FallContinuationStatus,
     build_fall_continuation_bridge,
 )
+from .fall_registration_screening import (
+    FallRegistrationScreening,
+    FallRegistrationScreeningError,
+    FallRegistrationScreeningIssue,
+    FallRegistrationScreeningStatus,
+    screen_fall_universe_for_freshman_registration,
+)
 from .fall_search import (
     FallSearchError,
     FallSearchUnknown,
@@ -373,6 +380,10 @@ __all__ = [
     "FallHardExclusionEvidence",
     "FallLoadPolicy",
     "FallRecognitionEvidence",
+    "FallRegistrationScreening",
+    "FallRegistrationScreeningError",
+    "FallRegistrationScreeningIssue",
+    "FallRegistrationScreeningStatus",
     "FallSearchError",
     "FallSearchScope",
     "FallSearchScopeKind",
@@ -568,6 +579,7 @@ __all__ = [
     "qrm_double_major_shell_2026",
     "qrm_single_major_2026",
     "recognize_section",
+    "screen_fall_universe_for_freshman_registration",
     "search_fall_whole_plans",
     "search_future_degree_reachability",
     "section_from_raw",
