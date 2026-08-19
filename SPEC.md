@@ -1,6 +1,6 @@
 # SPEC — Timetable Optimization
 
-**Status:** Provisional specification v0.5  
+**Status:** Provisional specification v0.6  
 **Stage:** Stage 3 implementation audit completed; Stage 4 repair starting
 
 This document defines what the program is supposed to do.
@@ -244,6 +244,31 @@ not:
 
     system invents value -> optimizer uses value
 
+### 9.1 Current proof-safe global course envelopes
+
+For Fall 2026 search, the user has confirmed a **neutral-zero convention** for the course-level preference dimensions below. Zero means no meaningful positive or negative effect on desirability.
+
+The user also supplied conservative ceilings on the true best-to-worst impact span of one course:
+
+- professor / teaching quality: **span ≤ 8**;
+- workload: **span ≤ 15**;
+- intrinsic subject interest: **span ≤ 3**;
+- pure cognitive difficulty: **span ≤ 5**.
+
+Workload and pure cognitive difficulty are one-sided burdens: a very light/easy course approaches 0, while additional workload or cognitive difficulty is negative. Therefore their proof-safe per-course utility envelopes are:
+
+- workload: **[-15, 0]**;
+- pure cognitive difficulty: **[-5, 0]**.
+
+Professor quality and subject interest may be either beneficial or harmful relative to neutral. The span ceilings do not establish where zero lies inside the true range. For proof-safe branch bounds, the model may therefore use the conservative outer envelopes:
+
+- professor / teaching quality: **[-8, +8]**;
+- intrinsic subject interest: **[-3, +3]**.
+
+These outer envelopes are deliberately looser than the user's true span ceilings. In particular, `[-8,+8]` does **not** assert that professor quality actually has a 16-point best-to-worst span, and `[-3,+3]` does **not** assert a 6-point interest span. They are admissible outer bounds derived from `min <= 0 <= max` together with `max - min <= span ceiling`, without assuming symmetry or inventing a midpoint.
+
+These values are intended first as **proof-safe fallback bounds**, not as final per-course ratings. Missing detailed ratings may remain visibly unknown for final ranking while still being bounded for exact search pruning. A course-specific user value, when supplied, should replace or tighten the relevant fallback evidence rather than being silently averaged with it.
+
 ---
 
 ## 10. Registration Obtainability and Competition
@@ -426,6 +451,7 @@ The program is not intended to:
 - Difficulty and workload belong in the model when defensibly represented.
 - Unknown difficulty/workload must not default to zero.
 - Professor and subject values are manually supplied numerical inputs.
+- For Fall 2026 proof search, neutral course impact is 0; conservative true best-to-worst spans are professor/teaching ≤8, workload ≤15, subject interest ≤3, and pure cognitive difficulty ≤5. The admissible fallback envelopes are professor [-8,+8], workload [-15,0], interest [-3,+3], and difficulty [-5,0], with the two symmetric-looking outer envelopes explicitly not interpreted as the true span.
 - Registration obtainability belongs conceptually inside the model, with uncertainty preserved.
 - Registration click order is static within one attempt and may be recomputed between attempts.
 - Future consequences may extend beyond credits to materially affected future opportunities.
