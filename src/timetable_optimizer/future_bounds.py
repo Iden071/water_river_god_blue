@@ -1,19 +1,11 @@
 """Admissible continuation bounds for the Stage 4D future objective.
 
-The exhaustive completion-history search remains the reference implementation.  This module
-adds only proof-safe *optional* bounds that a later branch-and-bound search may consume.
-
-The bound is deliberately relaxed.  For each remaining active term it evaluates every subset
-of the explicit scenario opportunity set, even subsets that may later fail degree recognition,
-credit allocation, or other state-dependent constraints.  Because the real feasible choices
-are a subset of this relaxed universe:
-
-* the minimum relaxed utility is a valid lower bound; and
-* the maximum relaxed utility is a valid upper bound.
-
-This can be loose, but it is admissible.  If the opportunity universe is incomplete, subset
-enumeration is truncated, or any positively weighted selection has heuristic/unresolved
-utility, the bound is unavailable.  No missing quantity is coerced to zero.
+The exhaustive completion-history search remains the reference implementation. This module
+adds only proof-safe optional bounds. For each remaining term it relaxes state-dependent
+constraints and evaluates every subset of the explicit scenario opportunity set. Because the
+real feasible choices are contained in that relaxed universe, its minimum and maximum are
+valid lower/upper utility bounds. If completeness, utility evidence, or enumeration is
+unresolved, no bound is returned and no pruning is justified.
 """
 
 from __future__ import annotations
@@ -50,8 +42,6 @@ class FutureBoundStatus(str, Enum):
 
 @dataclass(frozen=True)
 class FutureTermRelaxedUtilityEnvelope:
-    """Whole-term utility envelope over a relaxed explicit subset universe."""
-
     term_id: str
     lower_bound: float
     upper_bound: float
@@ -76,8 +66,6 @@ class FutureTermEnvelopeAssessment:
 
 @dataclass(frozen=True)
 class FutureContinuationUtilityBound:
-    """Admissible whole-objective interval for any continuation to one fixed horizon."""
-
     status: FutureBoundStatus
     target_term_ids: tuple[str, ...]
     prefix_term_ids: tuple[str, ...]
@@ -124,7 +112,7 @@ def _powerset(items):
         yield from combinations(items, size)
 
 
-def _master_aggregation_signature(
+def _aggregation_signature(
     aggregation: TemporalUtilityAggregation,
     term_ids: tuple[str, ...],
 ) -> tuple[str, tuple[tuple[str, float], ...]]:
@@ -146,6 +134,15 @@ def _validate_full_aggregation(
         )
 
 
+def _timeline_term(problem: FuturePlanningProblem, term_id: str) -> FutureTermScenario:
+    hits = [term for term in problem.timeline.terms if term.term_id == term_id]
+    if len(hits) != 1:
+        raise FutureBoundError(
+            f"expected exactly one future timeline term {term_id!r}, found {len(hits)}"
+        )
+    return hits[0]
+
+
 def derive_relaxed_term_utility_envelope(
     term: FutureTermScenario,
     opportunity_set: FutureTermOpportunitySet,
@@ -157,11 +154,7 @@ def derive_relaxed_term_utility_envelope(
     difficulty_utility: Mapping[str, PreferenceValue] | None = None,
     max_subset_evaluations: int = 100_000,
 ) -> FutureTermEnvelopeAssessment:
-    """Derive a proof-safe utility envelope over a relaxed term selection universe.
-
-    Stateful degree/recognition constraints are intentionally ignored here.  That makes the
-    envelope weaker, never optimistic in the unsafe direction.
-    """
+    """Bound one term over a relaxed universe containing every scenario subset."""
 
     if max_subset_evaluations <= 0:
         raise FutureBoundError("max_subset_evaluations must be positive")
@@ -169,47 +162,45 @@ def derive_relaxed_term_utility_envelope(
         raise FutureBoundError("term and opportunity-set ids do not match")
     if opportunity_set.status is not OpportunitySetStatus.EXPLICIT_SCENARIO:
         return FutureTermEnvelopeAssessment(
-            term_id=term.term_id,
-            status=FutureBoundStatus.INPUT_BLOCKED,
-            envelope=None,
-            blocker_codes=frozenset({"opportunity_set_not_complete"}),
-            evaluated_subsets=0,
-            total_subsets=0,
+            term.term_id,
+            FutureBoundStatus.INPUT_BLOCKED,
+            None,
+            frozenset({"opportunity_set_not_complete"}),
+            0,
+            0,
         )
 
     offerings = tuple(
         sorted(opportunity_set.offerings, key=lambda offering: offering.offering_id)
     )
     if term.activity is TermActivity.LEAVE:
-        # A leave term has exactly one academically feasible selection: nothing.
         subsets = ((),)
         total_subsets = 1
     else:
         total_subsets = 2 ** len(offerings)
         if total_subsets > max_subset_evaluations:
             return FutureTermEnvelopeAssessment(
-                term_id=term.term_id,
-                status=FutureBoundStatus.EVALUATION_LIMIT,
-                envelope=None,
-                blocker_codes=frozenset({"term_subset_evaluation_limit"}),
-                evaluated_subsets=0,
-                total_subsets=total_subsets,
+                term.term_id,
+                FutureBoundStatus.EVALUATION_LIMIT,
+                None,
+                frozenset({"term_subset_evaluation_limit"}),
+                0,
+                total_subsets,
             )
         subsets = _powerset(offerings)
 
     lower: float | None = None
     upper: float | None = None
     evaluated = 0
-
     for subset in subsets:
         if evaluated >= max_subset_evaluations:
             return FutureTermEnvelopeAssessment(
-                term_id=term.term_id,
-                status=FutureBoundStatus.EVALUATION_LIMIT,
-                envelope=None,
-                blocker_codes=frozenset({"term_subset_evaluation_limit"}),
-                evaluated_subsets=evaluated,
-                total_subsets=total_subsets,
+                term.term_id,
+                FutureBoundStatus.EVALUATION_LIMIT,
+                None,
+                frozenset({"term_subset_evaluation_limit"}),
+                evaluated,
+                total_subsets,
             )
         assessed = assess_future_term_utility(
             term,
@@ -227,37 +218,36 @@ def derive_relaxed_term_utility_envelope(
             if assessed.has_heuristics:
                 blockers.add("term_utility_heuristic")
             blockers.update(
-                f"utility::{dimension}"
-                for dimension in assessed.unresolved_dimensions
+                f"utility::{dimension}" for dimension in assessed.unresolved_dimensions
             )
             return FutureTermEnvelopeAssessment(
-                term_id=term.term_id,
-                status=FutureBoundStatus.UTILITY_UNRESOLVED,
-                envelope=None,
-                blocker_codes=frozenset(blockers),
-                evaluated_subsets=evaluated,
-                total_subsets=total_subsets,
+                term.term_id,
+                FutureBoundStatus.UTILITY_UNRESOLVED,
+                None,
+                frozenset(blockers),
+                evaluated,
+                total_subsets,
             )
-
         selection_lower, selection_upper = bounds
         lower = selection_lower if lower is None else min(lower, selection_lower)
         upper = selection_upper if upper is None else max(upper, selection_upper)
 
     assert lower is not None and upper is not None
+    envelope = FutureTermRelaxedUtilityEnvelope(
+        term.term_id,
+        lower,
+        upper,
+        evaluated,
+        total_subsets,
+        opportunity_set.source_id,
+    )
     return FutureTermEnvelopeAssessment(
-        term_id=term.term_id,
-        status=FutureBoundStatus.AVAILABLE,
-        envelope=FutureTermRelaxedUtilityEnvelope(
-            term_id=term.term_id,
-            lower_bound=lower,
-            upper_bound=upper,
-            evaluated_subsets=evaluated,
-            total_subsets=total_subsets,
-            opportunity_source_id=opportunity_set.source_id,
-        ),
-        blocker_codes=frozenset(),
-        evaluated_subsets=evaluated,
-        total_subsets=total_subsets,
+        term.term_id,
+        FutureBoundStatus.AVAILABLE,
+        envelope,
+        frozenset(),
+        evaluated,
+        total_subsets,
     )
 
 
@@ -274,12 +264,7 @@ def derive_future_continuation_utility_bound(
     difficulty_utility: Mapping[str, PreferenceValue] | None = None,
     max_subset_evaluations_per_term: int = 100_000,
 ) -> FutureContinuationUtilityBound:
-    """Bound every extension of ``prefix_history`` that ends on one fixed horizon.
-
-    The temporal objective is the same weighted sum used by the final future utility layer.
-    Since temporal weights are nonnegative, summing per-term relaxed minima/maxima preserves
-    admissibility.
-    """
+    """Bound every extension of one utility prefix to one fixed graduation horizon."""
 
     _validate_full_aggregation(problem, temporal_aggregation)
     timeline_ids = tuple(term.term_id for term in problem.timeline.terms)
@@ -288,20 +273,20 @@ def derive_future_continuation_utility_bound(
     if target_term_ids[: len(prefix_history.term_ids)] != prefix_history.term_ids:
         raise FutureBoundError("utility history must be a prefix of the target horizon")
 
-    signature = _master_aggregation_signature(temporal_aggregation, target_term_ids)
+    signature = _aggregation_signature(temporal_aggregation, target_term_ids)
     if not problem.exact_search_ready:
         return FutureContinuationUtilityBound(
-            status=FutureBoundStatus.INPUT_BLOCKED,
-            target_term_ids=target_term_ids,
-            prefix_term_ids=prefix_history.term_ids,
-            lower_bound=None,
-            upper_bound=None,
-            term_envelopes=(),
-            blocker_codes=problem.blocker_codes,
-            evaluated_subsets=0,
-            total_subsets=0,
-            aggregation_source_id=signature[0],
-            aggregation_weights=signature[1],
+            FutureBoundStatus.INPUT_BLOCKED,
+            target_term_ids,
+            prefix_history.term_ids,
+            None,
+            None,
+            (),
+            problem.blocker_codes,
+            0,
+            0,
+            signature[0],
+            signature[1],
         )
 
     prefix_aggregation = TemporalUtilityAggregation(
@@ -323,37 +308,32 @@ def derive_future_continuation_utility_bound(
         if prefix_aggregate.heuristic_point_delta != 0.0:
             blockers.add("prefix_utility_heuristic")
         return FutureContinuationUtilityBound(
-            status=FutureBoundStatus.UTILITY_UNRESOLVED,
-            target_term_ids=target_term_ids,
-            prefix_term_ids=prefix_history.term_ids,
-            lower_bound=None,
-            upper_bound=None,
-            term_envelopes=(),
-            blocker_codes=frozenset(blockers),
-            evaluated_subsets=0,
-            total_subsets=0,
-            aggregation_source_id=signature[0],
-            aggregation_weights=signature[1],
+            FutureBoundStatus.UTILITY_UNRESOLVED,
+            target_term_ids,
+            prefix_history.term_ids,
+            None,
+            None,
+            (),
+            frozenset(blockers),
+            0,
+            0,
+            signature[0],
+            signature[1],
         )
 
     lower, upper = prefix_bounds
     envelopes: list[FutureTermRelaxedUtilityEnvelope] = []
     evaluated_total = 0
     subset_total = 0
-
     start_index = len(prefix_history.term_ids)
+
     for term_id in target_term_ids[start_index:]:
         weight = temporal_aggregation.weight_for(term_id)
         if weight == 0.0:
-            # The final objective intentionally ignores this term; unresolved utility here
-            # cannot change the weighted objective.
             continue
-
-        term = problem.timeline.term(term_id)
-        opportunity_set = problem.opportunities.term(term_id)
         assessed = derive_relaxed_term_utility_envelope(
-            term,
-            opportunity_set,
+            _timeline_term(problem, term_id),
+            problem.opportunities.term(term_id),
             preference_profile,
             professor_ratings,
             subject_interest=subject_interest,
@@ -365,37 +345,35 @@ def derive_future_continuation_utility_bound(
         subset_total += assessed.total_subsets
         if not assessed.available:
             return FutureContinuationUtilityBound(
-                status=assessed.status,
-                target_term_ids=target_term_ids,
-                prefix_term_ids=prefix_history.term_ids,
-                lower_bound=None,
-                upper_bound=None,
-                term_envelopes=tuple(envelopes),
-                blocker_codes=assessed.blocker_codes,
-                evaluated_subsets=evaluated_total,
-                total_subsets=subset_total,
-                aggregation_source_id=signature[0],
-                aggregation_weights=signature[1],
+                assessed.status,
+                target_term_ids,
+                prefix_history.term_ids,
+                None,
+                None,
+                tuple(envelopes),
+                assessed.blocker_codes,
+                evaluated_total,
+                subset_total,
+                signature[0],
+                signature[1],
             )
-
         assert assessed.envelope is not None
-        envelope = assessed.envelope
-        envelopes.append(envelope)
-        lower += weight * envelope.lower_bound
-        upper += weight * envelope.upper_bound
+        envelopes.append(assessed.envelope)
+        lower += weight * assessed.envelope.lower_bound
+        upper += weight * assessed.envelope.upper_bound
 
     return FutureContinuationUtilityBound(
-        status=FutureBoundStatus.AVAILABLE,
-        target_term_ids=target_term_ids,
-        prefix_term_ids=prefix_history.term_ids,
-        lower_bound=lower,
-        upper_bound=upper,
-        term_envelopes=tuple(envelopes),
-        blocker_codes=frozenset(),
-        evaluated_subsets=evaluated_total,
-        total_subsets=subset_total,
-        aggregation_source_id=signature[0],
-        aggregation_weights=signature[1],
+        FutureBoundStatus.AVAILABLE,
+        target_term_ids,
+        prefix_history.term_ids,
+        lower,
+        upper,
+        tuple(envelopes),
+        frozenset(),
+        evaluated_total,
+        subset_total,
+        signature[0],
+        signature[1],
     )
 
 
@@ -404,7 +382,7 @@ def compare_continuation_bound_to_incumbent(
     incumbent_history: FutureUtilityHistory,
     incumbent_aggregation: TemporalUtilityAggregation,
 ) -> FuturePruningDecision:
-    """Return whether a complete incumbent safely prunes one partial-history bound."""
+    """Prove pruning only when an incumbent lower bound exceeds the relaxed upper bound."""
 
     if not bound.available:
         return FuturePruningDecision(
@@ -416,10 +394,7 @@ def compare_continuation_bound_to_incumbent(
             FuturePruningStatus.KEEP_HORIZON_MISMATCH,
             "incumbent and partial branch do not share one graduation horizon",
         )
-
-    signature = _master_aggregation_signature(
-        incumbent_aggregation, incumbent_history.term_ids
-    )
+    signature = _aggregation_signature(incumbent_aggregation, incumbent_history.term_ids)
     if signature != (bound.aggregation_source_id, bound.aggregation_weights):
         return FuturePruningDecision(
             FuturePruningStatus.KEEP_AGGREGATION_MISMATCH,
@@ -441,7 +416,6 @@ def compare_continuation_bound_to_incumbent(
             FuturePruningStatus.PRUNE_PROVEN,
             "incumbent lower bound is strictly above every continuation allowed by the relaxed upper bound",
         )
-
     return FuturePruningDecision(
         FuturePruningStatus.KEEP_NOT_DOMINATED,
         "continuation upper bound is not strictly below the incumbent lower bound",
