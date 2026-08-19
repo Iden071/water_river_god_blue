@@ -1,9 +1,12 @@
 """Exact timetable-quality facts for the Stage 4 rebuild.
 
-This module extracts observable timetable structure from canonical parsed
-sections.  It deliberately assigns no subjective utility.  The same facts can
-therefore be evaluated by different preference profiles without changing the
-feasible set or re-parsing section data.
+This module extracts observable timetable structure from safely parsed schedules.  It
+assigns no subjective utility, so the same exact facts can be evaluated by different
+preference profiles without changing the feasible set or re-parsing source data.
+
+The canonical-section API remains available, but the core extractor now consumes
+``ParsedSchedule`` objects directly.  This lets later scenario layers evaluate hypothetical
+future offerings without fabricating canonical observed ``Section`` objects.
 """
 
 from __future__ import annotations
@@ -79,12 +82,7 @@ def _runs(periods: tuple[int, ...]) -> tuple[int, ...]:
 
 
 def _weekend_connected_run(presence_free_weekdays: frozenset[int]) -> int:
-    """Length of the maximal no-presence run connected to Sat/Sun.
-
-    Weekday indices are Monday=0 through Friday=4.  Saturday and Sunday are
-    treated as naturally presence-free boundaries, matching the user's
-    lived-week interpretation without assigning any value to the run.
-    """
+    """Length of the maximal no-presence run connected to Sat/Sun."""
 
     attached: set[int] = set()
     for day in range(4, -1, -1):
@@ -100,34 +98,18 @@ def _weekend_connected_run(presence_free_weekdays: frozenset[int]) -> int:
 
     if not attached:
         return 2
-
-    # Saturday+Sunday always contribute two days; attached weekdays extend the
-    # run from either side.  Because Mon and Fri are connected through the
-    # weekend, both sides belong to one cyclic run.
     return 2 + len(attached)
 
 
-def extract_timetable_quality(sections: tuple[Section, ...]) -> TimetableQualityFacts:
-    """Extract exact timetable structure from fully parsed section schedules.
-
-    NoListedSchedule and UnresolvedSchedule are intentionally rejected rather
-    than treated as free time.  A later scenario layer may decide how to handle
-    them, but the exact-facts path must not fabricate schedule neutrality.
-    """
-
-    conflict_mask = 0
-    presence_mask = 0
-    fixed_mask = 0
-
-    for section in sections:
-        if not isinstance(section.schedule, ParsedSchedule):
-            raise TimetableQualityError(
-                f"section {section.section_id} has non-parsed schedule: "
-                f"{type(section.schedule).__name__}"
-            )
-        conflict_mask |= section.schedule.conflict_mask
-        presence_mask |= section.schedule.presence_mask
-        fixed_mask |= section.schedule.fixed_mask
+def _extract_from_masks(
+    conflict_mask: int,
+    presence_mask: int,
+    fixed_mask: int,
+) -> TimetableQualityFacts:
+    if presence_mask & ~fixed_mask:
+        raise TimetableQualityError("presence mask is not a subset of fixed mask")
+    if fixed_mask & ~conflict_mask:
+        raise TimetableQualityError("fixed mask is not a subset of conflict mask")
 
     days: list[DayQualityFacts] = []
     presence_free: set[int] = set()
@@ -172,3 +154,45 @@ def extract_timetable_quality(sections: tuple[Section, ...]) -> TimetableQuality
             frozenset(presence_free)
         ),
     )
+
+
+def extract_timetable_quality_from_parsed_schedules(
+    schedules: tuple[ParsedSchedule, ...],
+) -> TimetableQualityFacts:
+    """Extract exact timetable structure from already-validated parsed schedules.
+
+    This pure scenario-friendly entry point carries no section identity and makes no claim
+    that its schedules came from observed canonical catalogue rows.
+    """
+
+    conflict_mask = 0
+    presence_mask = 0
+    fixed_mask = 0
+    for schedule in schedules:
+        if not isinstance(schedule, ParsedSchedule):
+            raise TimetableQualityError(
+                "parsed-schedule extractor received a non-ParsedSchedule value"
+            )
+        conflict_mask |= schedule.conflict_mask
+        presence_mask |= schedule.presence_mask
+        fixed_mask |= schedule.fixed_mask
+    return _extract_from_masks(conflict_mask, presence_mask, fixed_mask)
+
+
+def extract_timetable_quality(sections: tuple[Section, ...]) -> TimetableQualityFacts:
+    """Extract exact timetable structure from fully parsed canonical sections.
+
+    ``NoListedSchedule`` and ``UnresolvedSchedule`` are intentionally rejected rather than
+    treated as free time.  A scenario layer may handle them explicitly, but the exact-facts
+    path must not fabricate schedule neutrality.
+    """
+
+    schedules: list[ParsedSchedule] = []
+    for section in sections:
+        if not isinstance(section.schedule, ParsedSchedule):
+            raise TimetableQualityError(
+                f"section {section.section_id} has non-parsed schedule: "
+                f"{type(section.schedule).__name__}"
+            )
+        schedules.append(section.schedule)
+    return extract_timetable_quality_from_parsed_schedules(tuple(schedules))
