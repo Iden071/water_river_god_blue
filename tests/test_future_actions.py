@@ -157,7 +157,7 @@ class FutureRecognitionActionTests(unittest.TestCase):
                 state.earned_credits + 3.0,
             )
 
-    def test_korean_qrm_cap_changes_actions_when_state_changes(self):
+    def test_korean_qrm_cap_is_explicit_allocation_choice_then_stateful_gate(self):
         scenario = qrm_single_major_2026()
         initial = spring_2026_initial_state(scenario)
         korean_econ = offering(
@@ -173,9 +173,22 @@ class FutureRecognitionActionTests(unittest.TestCase):
         fresh = generate_future_academic_actions(
             korean_econ, scenario, initial, evidence=evidence
         )
-        self.assertEqual(len(fresh.actions), 1)
-        self.assertIn("qrm_mr_micro", fresh.actions[0].effect.satisfy)
-        self.assertEqual(fresh.actions[0].effect.qrm_korean_major_credits, 3.0)
+        self.assertEqual(len(fresh.actions), 2)
+        counted = [
+            action
+            for action in fresh.actions
+            if action.effect.qrm_korean_major_credits == 3.0
+        ]
+        reserved = [
+            action
+            for action in fresh.actions
+            if action.effect.qrm_korean_major_credits == 0.0
+        ]
+        self.assertEqual(len(counted), 1)
+        self.assertEqual(len(reserved), 1)
+        self.assertIn("qrm_mr_micro", counted[0].effect.satisfy)
+        self.assertNotIn("qrm_mr_micro", reserved[0].effect.satisfy)
+        self.assertIn("decline-qrm-korean", reserved[0].option_id)
 
         capped = initial
         for index in range(4):
