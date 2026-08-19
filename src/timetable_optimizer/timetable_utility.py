@@ -113,10 +113,10 @@ def _add(quantities: dict[str, float], dimension_id: str, amount: float = 1.0) -
 def timetable_preference_quantities(facts: TimetableQualityFacts) -> dict[str, float]:
     """Translate observable timetable facts into declared preference dimensions.
 
-    The translation itself assigns no utility.  Where the historical evidence
-    pins only one point on a shape (for example a four-period gap), only that
-    point is activated numerically; other observed lengths activate a separate
-    unresolved shape dimension instead of being interpolated silently.
+    The translation itself assigns no utility.  Confirmed preference shapes are
+    represented by a quantity that lets the profile provide one evidence-backed
+    coefficient.  In particular, dead gaps use the confirmed quadratic curve
+    ``-10 * (length/4)^2`` by accumulating ``length^2`` units.
     """
 
     quantities: dict[str, float] = {}
@@ -142,10 +142,12 @@ def timetable_preference_quantities(facts: TimetableQualityFacts) -> dict[str, f
                 _add(quantities, "long_fixed_run_shape")
 
         for hole_length in day.holes:
-            if hole_length == 4:
-                _add(quantities, "four_period_hole")
-            elif hole_length > 0:
-                _add(quantities, "dead_gap_shape")
+            if hole_length > 0:
+                _add(
+                    quantities,
+                    "dead_gap_quadratic_unit",
+                    float(hole_length * hole_length),
+                )
 
     _add(
         quantities,
