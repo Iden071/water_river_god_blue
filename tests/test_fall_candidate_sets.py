@@ -26,6 +26,7 @@ def row(
     credits=3,
     room="강의실A",
     cancelled="0",
+    professor="Professor",
 ):
     course_code = course_code or section_id.split("-")[0]
     return {
@@ -35,7 +36,7 @@ def row(
         "subjtNm": course_code,
         "campsDivNm": "국제",
         "cdt": credits,
-        "cgprfNm": "Professor",
+        "cgprfNm": professor,
         "estblDeprtNm": "UIC",
         "hy": "1",
         "srclnLctreLangDivCd": "10",
@@ -197,8 +198,8 @@ class FallCandidateSetEnumerationTests(unittest.TestCase):
 
     def test_blocked_universe_is_not_partially_enumerated(self):
         blocked = universe(
-            row("A-01", "A", cgprfNm="Professor A"),
-            row("A-01", "A", cgprfNm="Professor B"),
+            row("A-01", "A", professor="Professor A"),
+            row("A-01", "A", professor="Professor B"),
         )
         generated = enumerate_fall_candidate_sets(
             blocked,
