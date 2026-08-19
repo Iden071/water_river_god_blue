@@ -75,6 +75,12 @@ from .future_actions import (
     FutureRecognitionEvidence,
     generate_future_academic_actions,
 )
+from .future_completion_search import (
+    FutureCompletionSearchError,
+    FutureCompletionSearchResult,
+    FutureCompletionSearchStatus,
+    enumerate_future_degree_completion_histories,
+)
 from .future_opportunities import (
     FutureOffering,
     FutureOfferingEvidence,
@@ -83,6 +89,15 @@ from .future_opportunities import (
     FutureOpportunityScenario,
     FutureTermOpportunitySet,
     OpportunitySetStatus,
+)
+from .future_optimization import (
+    FutureOptimizationAssessment,
+    FutureOptimizationError,
+    FutureOptimizationStatus,
+    FutureUtilityCandidate,
+    FutureUtilityHorizonFrontier,
+    assess_future_completion_utility,
+    build_safe_future_utility_frontiers,
 )
 from .future_problem import (
     FuturePlanningProblem,
@@ -129,6 +144,12 @@ from .future_utility import (
     TemporalUtilityWeight,
     aggregate_future_utility,
     assess_future_term_utility,
+)
+from .future_utility_comparison import (
+    FutureUtilityComparison,
+    FutureUtilityComparisonError,
+    FutureUtilityComparisonStatus,
+    compare_future_utility_histories,
 )
 from .future_witness_utility import (
     FutureWitnessUtilityAssessment,
@@ -271,12 +292,18 @@ __all__ = [
     "FutureActionIssue",
     "FutureCatalogueBasis",
     "FutureCatalogueBasisKind",
+    "FutureCompletionSearchError",
+    "FutureCompletionSearchResult",
+    "FutureCompletionSearchStatus",
     "FutureOffering",
     "FutureOfferingEvidence",
     "FutureOfferingEvidenceKind",
     "FutureOfferingPreferenceEvidence",
     "FutureOpportunityError",
     "FutureOpportunityScenario",
+    "FutureOptimizationAssessment",
+    "FutureOptimizationError",
+    "FutureOptimizationStatus",
     "FuturePlanningProblem",
     "FutureProblemBlocker",
     "FutureProblemError",
@@ -298,8 +325,13 @@ __all__ = [
     "FutureTermUtilityAssessment",
     "FutureTermWitness",
     "FutureTimelineScenario",
+    "FutureUtilityCandidate",
+    "FutureUtilityComparison",
+    "FutureUtilityComparisonError",
+    "FutureUtilityComparisonStatus",
     "FutureUtilityError",
     "FutureUtilityHistory",
+    "FutureUtilityHorizonFrontier",
     "FutureWitnessUtilityAssessment",
     "FutureWitnessUtilityError",
     "HistoricalMileageObservation",
@@ -381,12 +413,16 @@ __all__ = [
     "apply_recognition",
     "assess_candidate",
     "assess_freshman_registration",
+    "assess_future_completion_utility",
     "assess_future_term_utility",
     "assess_future_witness_utility",
     "assess_section_course_preferences",
     "build_future_planning_problem",
+    "build_safe_future_utility_frontiers",
     "classify_room_segment",
+    "compare_future_utility_histories",
     "degree_remainder",
+    "enumerate_future_degree_completion_histories",
     "evaluate_timetable_utility",
     "extract_timetable_quality",
     "extract_timetable_quality_from_parsed_schedules",
