@@ -15,6 +15,11 @@ gets an explicit branch that takes the course without assigning those QRM-major 
 That branch is essential: otherwise a fixed course-processing order would decide which
 course consumes the remaining allowance.
 
+Retakes are guarded separately. ``DegreeState`` represents unique graduation credit, so a
+future offering with a course code already completed cannot silently become fresh credit
+merely because its scenario offering id is different. Additional-credit repeatability must
+be supplied explicitly before such an action is generated.
+
 Future scenario evidence is converted into the existing canonical recognition authority
 rather than creating a second degree-rule implementation. The small internal course view
 below is intentionally *not* a canonical physical ``Section``: hypothetical future offerings
@@ -53,7 +58,8 @@ class FutureRecognitionEvidence:
 
     Course codes already establish many requirements. These fields carry only additional
     scenario evidence that cannot safely be inferred from a code: listing department,
-    an optional QRM program-listing category, and explicit language evidence.
+    an optional QRM program-listing category, explicit language evidence, and explicit
+    additional-credit repeatability when a course code has already been completed.
 
     When any additional evidence is supplied, ``source_id`` is required so hypothetical
     assumptions remain auditable.
@@ -65,6 +71,7 @@ class FutureRecognitionEvidence:
     qrm_listed_category: str | None = None
     foreign_language_course: bool | None = None
     korean_taught: bool | None = None
+    repeat_credit_allowed: bool | None = None
     note: str = ""
 
     def __post_init__(self) -> None:
@@ -74,6 +81,7 @@ class FutureRecognitionEvidence:
             or self.qrm_listed_category is not None
             or self.foreign_language_course is not None
             or self.korean_taught is not None
+            or self.repeat_credit_allowed is not None
             or self.note.strip()
         )
         if has_payload and not self.source_id.strip():
@@ -257,12 +265,45 @@ def generate_future_academic_actions(
     the course completion and all non-QRM recognition while declining QRM-major assignment.
     This makes the finite allowance an explicit solver choice rather than a side effect of
     iteration order.
+
+    If the course code has already been completed, additional graduation credit is not
+    invented. ``repeat_credit_allowed=True`` must be supplied with provenance to permit a
+    new credit-bearing transition for an explicitly repeatable course scenario.
     """
 
     if offering.offering_id in state.completion_ids:
         raise FutureActionError(
             f"future offering {offering.offering_id!r} is already present in DegreeState"
         )
+
+    if offering.course_code in state.completed_course_codes:
+        if evidence.repeat_credit_allowed is not True:
+            if evidence.repeat_credit_allowed is False:
+                issue = FutureActionIssue(
+                    code="repeat_course_no_additional_degree_credit",
+                    message=(
+                        "course code is already completed and explicit scenario evidence says the repeat earns no additional degree credit"
+                    ),
+                )
+            else:
+                issue = FutureActionIssue(
+                    code="repeat_credit_unresolved",
+                    message=(
+                        "course code is already completed; additional-credit repeatability is unresolved and no new graduation credit is invented"
+                    ),
+                )
+            return FutureActionGeneration(
+                offering_id=offering.offering_id,
+                recognition=RecognitionAssessment(
+                    section_id=offering.offering_id,
+                    decisions=(),
+                    options=(),
+                    issues=(),
+                ),
+                actions=(),
+                unresolved_requirement_ids=frozenset(),
+                issues=(issue,),
+            )
 
     source_views, program_listings, course_evidence = _recognition_inputs(
         offering, evidence
