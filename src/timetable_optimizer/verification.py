@@ -26,7 +26,8 @@ from enum import Enum
 from typing import Iterable, Mapping
 
 from .degree import DegreeScenario, SecondMajorStatus
-from .fall_candidate_sets import FallCandidateSetEnumeration
+from .fall_candidate_sets import FallCandidateSetEnumeration, FallLoadPolicy
+from .fall_universe import FallSectionUniverse
 from .registration import RegistrationAssessment, YearQuotaGateStatus
 
 
@@ -226,21 +227,21 @@ def audit_degree_scenario_verification(scenario: DegreeScenario) -> Verification
     return VerificationSummary(tuple(dependencies))
 
 
-def audit_fall_input_verification(
-    candidate_sets: FallCandidateSetEnumeration,
+def audit_fall_universe_verification(
+    universe: FallSectionUniverse,
+    load_policy: FallLoadPolicy,
     *,
     registration_assessments: Mapping[str, RegistrationAssessment] | None = None,
 ) -> VerificationSummary:
-    """Report authority dependencies at the Fall-universe/search-input boundary."""
+    """Audit Fall search inputs without requiring an all-at-once candidate enumeration."""
 
-    universe = candidate_sets.universe
     dependencies: list[EvidenceDependency] = [
         dependency_from_source(
             "fall::ordinary_credit_cap",
-            candidate_sets.load_policy.source_id,
+            load_policy.source_id,
             description=(
-                f"ordinary Fall credit cap = {candidate_sets.load_policy.ordinary_credit_cap:g}; "
-                f"Chapel exempt = {candidate_sets.load_policy.chapel_exempt_from_ordinary_cap}"
+                f"ordinary Fall credit cap = {load_policy.ordinary_credit_cap:g}; "
+                f"Chapel exempt = {load_policy.chapel_exempt_from_ordinary_cap}"
             ),
         ),
         dependency_from_source(
@@ -282,6 +283,20 @@ def audit_fall_input_verification(
         )
 
     return VerificationSummary(tuple(dependencies))
+
+
+def audit_fall_input_verification(
+    candidate_sets: FallCandidateSetEnumeration,
+    *,
+    registration_assessments: Mapping[str, RegistrationAssessment] | None = None,
+) -> VerificationSummary:
+    """Compatibility wrapper for the reference all-at-once Fall search."""
+
+    return audit_fall_universe_verification(
+        candidate_sets.universe,
+        candidate_sets.load_policy,
+        registration_assessments=registration_assessments,
+    )
 
 
 def can_claim_user_verified_optimum(
