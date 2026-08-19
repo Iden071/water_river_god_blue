@@ -1,17 +1,22 @@
 """Stateful future recognition/action generation for Stage 4D.
 
 The future search must not decide degree recognition by an arbitrary iteration order over
-courses.  Recognition can depend on the *current* :class:`DegreeState` (for example the
-QRM Korean-taught Economics/Applied-Statistics cap), and one course can branch between
-QRM and second-major assignment.
+courses. Recognition can depend on the *current* :class:`DegreeState` (for example the QRM
+Korean-taught Economics/Applied-Statistics cap), and one course can branch between QRM and
+second-major assignment.
 
 This module therefore turns one :class:`FutureOffering` into explicit state-transition
-actions.  Every generated action contains the exact recognition option selected and the
-resulting immutable degree state.  A later solver may choose among these actions; this layer
+actions. Every generated action contains the exact recognition option selected and the
+resulting immutable degree state. A later solver may choose among these actions; this layer
 does not rank them, force an offering to be taken, or collapse unresolved recognition.
 
+A Korean-taught course that would consume QRM's finite Korean-major-credit allowance also
+gets an explicit branch that takes the course without assigning those QRM-major claims.
+That branch is essential: otherwise a fixed course-processing order would decide which
+course consumes the remaining allowance.
+
 Future scenario evidence is converted into the existing canonical recognition authority
-rather than creating a second degree-rule implementation.  The small internal course view
+rather than creating a second degree-rule implementation. The small internal course view
 below is intentionally *not* a canonical physical ``Section``: hypothetical future offerings
 are planning objects, not observations that should leak into the canonical catalogue.
 """
@@ -27,6 +32,7 @@ from .degree import (
     DegreeState,
     RecognitionEffect,
     apply_recognition,
+    requirement_major_owner,
 )
 from .future_opportunities import FutureOffering
 from .recognition import (
@@ -45,7 +51,7 @@ class FutureActionError(ValueError):
 class FutureRecognitionEvidence:
     """Scenario-local evidence needed by the canonical recognition authority.
 
-    Course codes already establish many requirements.  These fields carry only additional
+    Course codes already establish many requirements. These fields carry only additional
     scenario evidence that cannot safely be inferred from a code: listing department,
     an optional QRM program-listing category, and explicit language evidence.
 
@@ -149,7 +155,7 @@ class _FutureRecognitionCourseView:
     """Narrow duck-typed input consumed by ``recognize_section``.
 
     ``recognize_section`` uses section identity, course code, credits, display name and the
-    explicit human-readable lecture-language label.  We intentionally provide only those
+    explicit human-readable lecture-language label. We intentionally provide only those
     semantics instead of fabricating a canonical observed Section.
     """
 
@@ -209,6 +215,30 @@ def _recognition_inputs(
     return source_views, program_listings, course_evidence
 
 
+def _without_qrm_major_claims(
+    effect: RecognitionEffect,
+    scenario: DegreeScenario,
+) -> RecognitionEffect:
+    """Keep the completion/non-QRM claims while declining QRM-major assignment."""
+
+    def keep(requirement_id: str) -> bool:
+        return requirement_major_owner(scenario, requirement_id) != "qrm"
+
+    return RecognitionEffect(
+        completion=effect.completion,
+        satisfy=tuple(rid for rid in effect.satisfy if keep(rid)),
+        category_claims=tuple(
+            claim for claim in effect.category_claims if keep(claim[0])
+        ),
+        bucket_credit_claims=tuple(
+            claim for claim in effect.bucket_credit_claims if keep(claim[0])
+        ),
+        chapel_pass=effect.chapel_pass,
+        chapel_offline=effect.chapel_offline,
+        qrm_korean_major_credits=0.0,
+    )
+
+
 def generate_future_academic_actions(
     offering: FutureOffering,
     scenario: DegreeScenario,
@@ -218,10 +248,15 @@ def generate_future_academic_actions(
 ) -> FutureActionGeneration:
     """Generate recognition/state-transition branches for one future offering.
 
-    Recognition is evaluated *at this state*.  Calling the function again after another
+    Recognition is evaluated *at this state*. Calling the function again after another
     action may therefore produce a different option set when a stateful cap or assignment
-    rule has changed.  This is intentional and is the contract the finite future solver will
+    rule has changed. This is intentional and is the contract the finite future solver will
     branch over.
+
+    If an option consumes QRM Korean-major-credit allowance, an additional branch preserves
+    the course completion and all non-QRM recognition while declining QRM-major assignment.
+    This makes the finite allowance an explicit solver choice rather than a side effect of
+    iteration order.
     """
 
     if offering.offering_id in state.completion_ids:
@@ -240,7 +275,7 @@ def generate_future_academic_actions(
         language_name="",
     )
 
-    # ``recognize_section`` is intentionally duck-typed at runtime.  The adapter above
+    # ``recognize_section`` is intentionally duck-typed at runtime. The adapter above
     # carries exactly the attributes the recognition authority consumes; it is not inserted
     # into the canonical Section catalogue.
     recognition = recognize_section(  # type: ignore[arg-type]
@@ -262,25 +297,40 @@ def generate_future_academic_actions(
         for issue in recognition.issues
     ]
 
-    actions: list[FutureAcademicAction] = []
+    branch_effects: list[tuple[str, str, RecognitionEffect]] = []
     for option in recognition.options:
+        branch_effects.append((option.option_id, option.reason, option.effect))
+        if option.effect.qrm_korean_major_credits > 0:
+            branch_effects.append(
+                (
+                    f"{option.option_id}:decline-qrm-korean",
+                    (
+                        option.reason
+                        + "; take the course but reserve the finite Korean QRM-major-credit allowance for another completion"
+                    ),
+                    _without_qrm_major_claims(option.effect, scenario),
+                )
+            )
+
+    actions: list[FutureAcademicAction] = []
+    for option_id, reason, effect in branch_effects:
         try:
-            resulting_state = apply_recognition(state, scenario, option.effect)
+            resulting_state = apply_recognition(state, scenario, effect)
         except DegreeRuleError as exc:
             # A recognition option that cannot be applied to the very state against which
             # it was generated is an integration defect, not a branch to silently drop.
             raise FutureActionError(
-                f"recognition option {option.option_id!r} cannot be applied: {exc}"
+                f"recognition option {option_id!r} cannot be applied: {exc}"
             ) from exc
 
         actions.append(
             FutureAcademicAction(
-                action_id=f"{offering.term_id}:{option.option_id}",
+                action_id=f"{offering.term_id}:{option_id}",
                 term_id=offering.term_id,
                 offering_id=offering.offering_id,
-                option_id=option.option_id,
-                reason=option.reason,
-                effect=option.effect,
+                option_id=option_id,
+                reason=reason,
+                effect=effect,
                 resulting_state=resulting_state,
             )
         )
