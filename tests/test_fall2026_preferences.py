@@ -10,7 +10,6 @@ from timetable_optimizer.fall2026_preferences import (  # noqa: E402
 )
 from timetable_optimizer.preferences import (  # noqa: E402
     EstimateStatus,
-    PreferenceRelationKind,
     PreferenceSourceKind,
 )
 
@@ -19,23 +18,35 @@ class Fall2026PreferenceProfileTests(unittest.TestCase):
     def setUp(self):
         self.profile = fall2026_preference_profile()
 
-    def test_anchor_and_confirmed_points_are_preserved(self):
-        self.assertEqual(
-            self.profile.value("start_period_1_day").estimate.require_exact(),
-            -10.0,
+    def test_anchor_and_current_confirmed_points_are_preserved(self):
+        expected = {
+            "start_period_1_day": -10.0,
+            "start_period_2_day": -5.0,
+            "four_fixed_period_run": -8.0,
+            "late_finish_period_9": -1.0,
+            "late_finish_period_13": -10.0,
+            "missing_lunch": -6.0,
+            "missing_dinner": -8.0,
+        }
+        for dimension, point in expected.items():
+            self.assertEqual(
+                self.profile.value(dimension).estimate.require_exact(),
+                point,
+            )
+
+    def test_2250_is_derived_from_confirmed_late_finish_curve(self):
+        value = self.profile.value("late_finish_period_14")
+        self.assertAlmostEqual(
+            value.estimate.require_exact(),
+            -12.980240898764906,
         )
-        self.assertEqual(
-            self.profile.value("four_fixed_period_run").estimate.require_exact(),
-            -8.0,
-        )
-        self.assertEqual(
-            self.profile.value("late_finish_period_9").estimate.require_exact(),
-            -1.0,
-        )
-        self.assertEqual(
-            self.profile.value("late_finish_period_13").estimate.require_exact(),
-            -10.0,
-        )
+        self.assertEqual(value.provenance.source_kind, PreferenceSourceKind.DERIVED)
+
+    def test_confirmed_quadratic_gap_curve_is_proof_numeric(self):
+        gap = self.profile.value("dead_gap_quadratic_unit")
+        self.assertEqual(gap.estimate.status, EstimateStatus.EXACT)
+        self.assertEqual(gap.estimate.require_exact(), -0.625)
+        self.assertEqual(gap.provenance.source_kind, PreferenceSourceKind.DERIVED)
 
     def test_old_midpoints_are_not_frozen_when_original_evidence_was_bounded(self):
         rest = self.profile.value("rest_fixed_free_weekday")
@@ -46,22 +57,14 @@ class Fall2026PreferenceProfileTests(unittest.TestCase):
         self.assertEqual(trip.estimate.bounds, (12.0, 14.0))
         self.assertEqual(trip.provenance.source_kind, PreferenceSourceKind.DERIVED)
 
-    def test_approximate_comparisons_remain_heuristic(self):
-        self.assertEqual(
-            self.profile.value("four_period_hole").estimate.status,
-            EstimateStatus.HEURISTIC,
-        )
+    def test_hard_language_comparison_remains_heuristic(self):
         self.assertEqual(
             self.profile.value("hard_language_course").estimate.status,
             EstimateStatus.HEURISTIC,
         )
 
-    def test_unresolved_dimensions_do_not_receive_legacy_defaults(self):
+    def test_remaining_unresolved_dimensions_stay_unmeasured(self):
         expected = {
-            "start_period_2_day",
-            "late_finish_period_14",
-            "missing_lunch",
-            "missing_dinner",
             "friday_event_window_free",
             "weekend_run_curvature",
             "course_workload",
@@ -72,28 +75,13 @@ class Fall2026PreferenceProfileTests(unittest.TestCase):
             "target_credit_load_18",
         }
         self.assertTrue(expected <= self.profile.unmeasured_dimensions)
+        self.assertNotIn("start_period_2_day", self.profile.unmeasured_dimensions)
+        self.assertNotIn("late_finish_period_14", self.profile.unmeasured_dimensions)
+        self.assertNotIn("missing_lunch", self.profile.unmeasured_dimensions)
+        self.assertNotIn("missing_dinner", self.profile.unmeasured_dimensions)
 
-    def test_dinner_vs_lunch_is_preserved_as_relation_not_invented_numbers(self):
-        relation = next(
-            relation
-            for relation in self.profile.relations
-            if relation.label == "Dinner loss is worse than lunch loss"
-        )
-        self.assertEqual(relation.relation, PreferenceRelationKind.LESS_THAN)
-        self.assertEqual(relation.rhs, 0.0)
-
-    def test_2250_statement_bounds_unmeasured_magnitude(self):
-        relation = next(
-            relation
-            for relation in self.profile.relations
-            if relation.label == "22:50 finish worse than 21:50 anchor"
-        )
-        self.assertEqual(relation.relation, PreferenceRelationKind.LESS_THAN)
-        self.assertEqual(relation.rhs, -10.0)
-        self.assertEqual(
-            self.profile.value("late_finish_period_14").estimate.status,
-            EstimateStatus.UNMEASURED,
-        )
+    def test_redundant_qualitative_relations_are_removed_after_numeric_resolution(self):
+        self.assertEqual(self.profile.relations, ())
 
 
 if __name__ == "__main__":
