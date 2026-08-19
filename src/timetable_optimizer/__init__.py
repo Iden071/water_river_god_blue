@@ -67,6 +67,23 @@ from .degree_remainder import (
     degree_remainder,
 )
 from .fall2026_preferences import fall2026_preference_profile
+from .fall_actions import (
+    FallAcademicAction,
+    FallActionError,
+    FallActionGeneration,
+    FallActionIssue,
+    FallDegreeTransitionBranch,
+    FallDegreeTransitionGeneration,
+    FallRecognitionEvidence,
+    generate_fall_academic_actions,
+    generate_fall_degree_transitions,
+)
+from .fall_continuation import (
+    FallContinuationBridge,
+    FallContinuationError,
+    FallContinuationStatus,
+    build_fall_continuation_bridge,
+)
 from .future_actions import (
     FutureAcademicAction,
     FutureActionError,
@@ -187,6 +204,11 @@ from .preferences import (
     PreferenceSourceKind,
     PreferenceValue,
 )
+from .present_utility import (
+    PresentTermUtilityAssessment,
+    PresentUtilityError,
+    assess_present_candidate_utility,
+)
 from .recognition import (
     CHAPEL_2026_CODES,
     LANGUAGE_EXCLUDED_CODES,
@@ -259,6 +281,15 @@ from .travel import (
     TravelPathFacts,
     extract_travel_path_facts,
 )
+from .whole_plan_optimization import (
+    WholePlanHorizonFrontier,
+    WholePlanOptimizationAssessment,
+    WholePlanOptimizationError,
+    WholePlanOptimizationStatus,
+    WholePlanUtilityCandidate,
+    assess_fall_candidate_whole_plan,
+    build_safe_whole_plan_frontiers,
+)
 
 __all__ = [
     "AggregatedFutureUtility",
@@ -297,6 +328,16 @@ __all__ = [
     "DegreeState",
     "DeliveryKind",
     "EstimateStatus",
+    "FallAcademicAction",
+    "FallActionError",
+    "FallActionGeneration",
+    "FallActionIssue",
+    "FallContinuationBridge",
+    "FallContinuationError",
+    "FallContinuationStatus",
+    "FallDegreeTransitionBranch",
+    "FallDegreeTransitionGeneration",
+    "FallRecognitionEvidence",
     "FreshmanQuotaObservation",
     "FutureAcademicAction",
     "FutureActionError",
@@ -384,6 +425,8 @@ __all__ = [
     "PreferenceRuleError",
     "PreferenceSourceKind",
     "PreferenceValue",
+    "PresentTermUtilityAssessment",
+    "PresentUtilityError",
     "ProfessorRatingBook",
     "ProfessorRatingLookup",
     "ProfessorRatingRecord",
@@ -427,17 +470,26 @@ __all__ = [
     "UnresolvedSchedule",
     "UnresolvedUtilityDimension",
     "UtilityContribution",
+    "WholePlanHorizonFrontier",
+    "WholePlanOptimizationAssessment",
+    "WholePlanOptimizationError",
+    "WholePlanOptimizationStatus",
+    "WholePlanUtilityCandidate",
     "YearQuotaGateStatus",
     "aggregate_future_utility",
     "apply_recognition",
     "assess_candidate",
+    "assess_fall_candidate_whole_plan",
     "assess_freshman_registration",
     "assess_future_completion_utility",
     "assess_future_term_utility",
     "assess_future_witness_utility",
+    "assess_present_candidate_utility",
     "assess_section_course_preferences",
+    "build_fall_continuation_bridge",
     "build_future_planning_problem",
     "build_safe_future_utility_frontiers",
+    "build_safe_whole_plan_frontiers",
     "classify_room_segment",
     "compare_continuation_bound_to_incumbent",
     "compare_future_utility_histories",
@@ -451,6 +503,8 @@ __all__ = [
     "extract_travel_path_facts",
     "fall2026_preference_profile",
     "freshman_quota_observation_from_row",
+    "generate_fall_academic_actions",
+    "generate_fall_degree_transitions",
     "generate_future_academic_actions",
     "generate_future_term_bundles",
     "historical_mileage_observation_from_row",
