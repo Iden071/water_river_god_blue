@@ -80,9 +80,7 @@ class ChapelRequirement:
     passes_required: int
     credits_per_pass: float
     # Kept nullable so another scenario can preserve an unresolved modality rule. The
-    # current 2026 first-major scenario sets this explicitly to zero: verified current
-    # Chapel rules require four semester passes and do not establish a separate minimum
-    # number of face-to-face passes.
+    # current 2026 first-major scenario requires at least two offline Chapel passes.
     offline_passes_required: int | None = None
     source: str = "2026 curriculum"
 
@@ -438,8 +436,8 @@ def _common_requirements() -> tuple[Requirement, ...]:
             "Chapel",
             passes_required=4,
             credits_per_pass=0.5,
-            offline_passes_required=0,
-            source="2026 curriculum + current Yonsei Chapel rules, verified 2026-08-18",
+            offline_passes_required=2,
+            source="SPEC.md §7.1 + user manual confirmation 2026-08-19",
         ),
         SpecificCourseRequirement(
             "cc_christianity",
@@ -588,9 +586,9 @@ def spring_2026_initial_state(scenario: DegreeScenario) -> DegreeState:
     """Build the user's completed first-semester state from concrete known completions.
 
     Spring 2026 consisted of six ordinary 3-credit courses, RC101 (1 credit), and one
-    0.5-credit Chapel pass, for 19.5 unique graduation credits. The Chapel section/code and
-    offline/online status have not yet been established in the migrated evidence, so that
-    completion intentionally keeps ``course_code=None`` and offline status unknown.
+    0.5-credit Chapel pass, for 19.5 unique graduation credits. The user manually confirmed
+    on 2026-08-19 that the Spring 2026 Chapel pass was offline, so the initial Chapel state is
+    one total pass and one of the two required offline passes.
     """
 
     effects = (
@@ -647,8 +645,8 @@ def spring_2026_initial_state(scenario: DegreeScenario) -> DegreeState:
             completion_id="2026S-CHAPEL",
             credits=0.5,
             course_code=None,
-            offline=None,
-            label="Spring 2026 Chapel (section code/status not yet recorded)",
+            offline=True,
+            label="Spring 2026 Chapel (offline; user-confirmed 2026-08-19)",
         ),
     )
 
