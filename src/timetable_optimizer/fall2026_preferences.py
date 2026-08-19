@@ -35,6 +35,22 @@ def _derived(source_id: str, description: str, derivation: str) -> PreferencePro
     )
 
 
+def _derived_late_finish(period: int, point: float) -> PreferenceValue:
+    return PreferenceValue(
+        f"late_finish_period_{period}",
+        PreferenceEstimate.exact(point),
+        _derived(
+            f"user-recalled-late-finish-curve-2026-08-19:p{period}",
+            f"Period-{period} late-finish value derived from the already-established late-finish curve recalled and accepted by the user.",
+            (
+                "Use LatePenalty(p)=-(p-8)^a with anchors period 9=-1 and period 13=-10. "
+                "These imply a=ln(10)/ln(5)=1.4306765580733933; substitute the stated period."
+            ),
+        ),
+        f"Period {period} finish",
+    )
+
+
 def fall2026_preference_profile() -> PreferenceProfile:
     """Return the currently defensible Fall 2026 subjective evidence profile.
 
@@ -99,6 +115,9 @@ def fall2026_preference_profile() -> PreferenceProfile:
             ),
             "17:50 finish",
         ),
+        _derived_late_finish(10, -2.695731032073513),
+        _derived_late_finish(11, -4.815109795572117),
+        _derived_late_finish(12, -7.266965797284128),
         PreferenceValue(
             "late_finish_period_13",
             PreferenceEstimate.exact(-10.0),
@@ -108,16 +127,8 @@ def fall2026_preference_profile() -> PreferenceProfile:
             ),
             "21:50 finish",
         ),
-        PreferenceValue(
-            "late_finish_period_14",
-            PreferenceEstimate.exact(-12.980240898764906),
-            _derived(
-                "user-recalled-late-finish-curve-2026-08-19",
-                "Period-14 (22:50) finish value derived from the already-established late-finish curve recalled and accepted by the user.",
-                "Use LatePenalty(p)=-(p-8)^a with anchors period 9=-1 and period 13=-10. These imply a=ln(10)/ln(5)=1.4306765580733933, so period 14 gives -(6^a)=-12.980240898764906.",
-            ),
-            "22:50 finish",
-        ),
+        _derived_late_finish(14, -12.980240898764906),
+        _derived_late_finish(15, -16.183108844566643),
         PreferenceValue(
             "dead_gap_quadratic_unit",
             PreferenceEstimate.exact(-0.625),
