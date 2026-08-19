@@ -122,6 +122,16 @@ class FallPruningReadiness:
         )
 
 
+_GLOBAL_COURSE_BOUND_DIMENSIONS = frozenset(
+    {
+        "professor_rating_to_utility",
+        "subject_interest",
+        "workload",
+        "difficulty",
+    }
+)
+
+
 def _proof_numeric(value: PreferenceValue) -> bool:
     """Existing Stage 4 proof semantics accept exact/bounded, never heuristic points."""
 
@@ -133,6 +143,14 @@ def _explicit_resolution_available(
     resolutions: Mapping[str, PreferenceValue],
 ) -> bool:
     value = resolutions.get(dimension_id)
+    return value is not None and _proof_numeric(value)
+
+
+def _global_course_bound_available(
+    dimension_id: str,
+    bounds: Mapping[str, PreferenceValue],
+) -> bool:
+    value = bounds.get(dimension_id)
     return value is not None and _proof_numeric(value)
 
 
@@ -156,14 +174,20 @@ def audit_fall_pruning_readiness(
     workload_utility: Mapping[str, PreferenceValue] | None = None,
     difficulty_utility: Mapping[str, PreferenceValue] | None = None,
     resolved_present_dimensions: Mapping[str, PreferenceValue] | None = None,
+    global_course_utility_bounds: Mapping[str, PreferenceValue] | None = None,
 ) -> FallPruningReadiness:
     """Report missing proof-safe Fall utility bounds without manufacturing numbers.
 
     The audit is conservative.  It only labels the *present* relaxed bound ready when every
     represented scalar timetable preference is exact/bounded, there are no unresolved
     qualitative relations in the current evaluator, and each selectable section's local
-    course/registration utility evidence is exact/bounded or explicitly resolved with a
-    proof-safe value.
+    course/registration utility evidence is exact/bounded, explicitly resolved with a
+    proof-safe value, or covered by an elicited global course-utility envelope.
+
+    A global course envelope is a fallback bound for search relaxation, not a point rating.
+    In particular, a bound on total professor-quality utility is sufficient for pruning even
+    when the raw professor rating is absent: the branch can still be bounded without knowing
+    where inside that envelope the professor actually lies.
 
     If ``fall_weight`` is ``None``, the real temporal objective has not been elicited.  The
     function still reports the latent boundedness blockers so evidence collection can be
@@ -182,6 +206,24 @@ def audit_fall_pruning_readiness(
     workload_map = workload_utility or {}
     difficulty_map = difficulty_utility or {}
     resolutions = resolved_present_dimensions or {}
+    course_bounds = global_course_utility_bounds or {}
+
+    unknown_bound_dimensions = set(course_bounds) - _GLOBAL_COURSE_BOUND_DIMENSIONS
+    if unknown_bound_dimensions:
+        raise FallPruningReadinessError(
+            "unknown global course-bound dimensions: "
+            + ", ".join(sorted(unknown_bound_dimensions))
+        )
+    nonnumeric_bounds = [
+        dimension
+        for dimension, value in course_bounds.items()
+        if not _proof_numeric(value)
+    ]
+    if nonnumeric_bounds:
+        raise FallPruningReadinessError(
+            "global course utility bounds must be exact/bounded proof evidence: "
+            + ", ".join(sorted(nonnumeric_bounds))
+        )
 
     section_blockers: dict[str, set[str]] = {}
 
@@ -197,18 +239,34 @@ def audit_fall_pruning_readiness(
 
         # These names deliberately match CandidateAssessment.present_preference_unknowns.
         for dimension in evidence.unresolved_dimensions:
+            # A raw professor rating is only an input to professor utility.  Once the *total*
+            # professor-quality utility is globally bounded, missing the raw rating no longer
+            # prevents an admissible branch bound; it remains useful evidence to elicit later
+            # for tighter/final evaluation.
+            if (
+                dimension == "professor_rating"
+                and _global_course_bound_available(
+                    "professor_rating_to_utility", course_bounds
+                )
+            ):
+                continue
+            if _global_course_bound_available(dimension, course_bounds):
+                continue
             scoped = f"course::{sid}::{dimension}"
             if not _explicit_resolution_available(scoped, resolutions):
                 _add_section_blocker(section_blockers, dimension, sid)
 
         # SectionCoursePreferenceEvidence marks UNMEASURED values above, but heuristic
-        # subject/workload/difficulty values are also not proof-safe complete bounds.
-        for dimension, value in (
-            ("subject_interest_heuristic", evidence.subject_interest),
-            ("workload_heuristic", evidence.workload_utility),
-            ("difficulty_heuristic", evidence.difficulty_utility),
+        # subject/workload/difficulty values are also not proof-safe complete bounds.  A
+        # separately elicited global envelope can still safely bound the true contribution.
+        for dimension, base_dimension, value in (
+            ("subject_interest_heuristic", "subject_interest", evidence.subject_interest),
+            ("workload_heuristic", "workload", evidence.workload_utility),
+            ("difficulty_heuristic", "difficulty", evidence.difficulty_utility),
         ):
             if value.estimate.status is EstimateStatus.HEURISTIC:
+                if _global_course_bound_available(base_dimension, course_bounds):
+                    continue
                 _add_section_blocker(section_blockers, dimension, sid)
 
         registration = registration_map.get(sid)
