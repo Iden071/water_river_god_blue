@@ -37,7 +37,11 @@ from .recognition import (
     QualificationStatus,
     RecognitionAssessment,
 )
-from .registration import ObtainabilityStatus, RegistrationAssessment
+from .registration import (
+    ObtainabilityStatus,
+    RegistrationAssessment,
+    YearQuotaGateStatus,
+)
 from .sections import ParsedSchedule, Section
 from .timetable_quality import TimetableQualityFacts, extract_timetable_quality
 from .timetable_utility import PartialUtilityAssessment, evaluate_timetable_utility
@@ -444,7 +448,19 @@ def assess_candidate(
                 f"registration assessment key/section mismatch for {section.section_id}"
             )
         registration.append(assessment)
-        if assessment.blocked_by_observed_year_gate:
+        if assessment.year_quota_status is YearQuotaGateStatus.NO_OBSERVATION:
+            issues.append(
+                CandidateConstraintIssue(
+                    code="registration_year_gate_unresolved",
+                    status=ConstraintEvidenceStatus.UNRESOLVED,
+                    message=(
+                        "no section-specific year-quota observation establishes whether a freshman gate applies"
+                    ),
+                    section_ids=(section.section_id,),
+                    source=assessment.quota_source_id or "Stage 4C registration evidence",
+                )
+            )
+        elif assessment.blocked_by_observed_year_gate:
             issues.append(
                 CandidateConstraintIssue(
                     code="registration_year_gate_block",
