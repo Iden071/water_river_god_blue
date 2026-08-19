@@ -27,6 +27,7 @@ from timetable_optimizer.registration import (
     YearQuotaGateStatus,
 )
 from timetable_optimizer.sections import ParsedSchedule, Section
+from timetable_optimizer.timetable_utility import timetable_preference_dimension_contract
 
 
 def section(section_id="A"):
@@ -97,6 +98,17 @@ def bounded_value(dimension, lower, upper):
     )
 
 
+def complete_timetable_profile(*, overrides=(), extras=()):
+    values = {
+        dimension: exact_value(dimension, 0.0)
+        for dimension in timetable_preference_dimension_contract()
+    }
+    for value in overrides:
+        values[value.dimension_id] = value
+    ordered = tuple(values[dimension] for dimension in sorted(values)) + tuple(extras)
+    return PreferenceProfile("complete-timetable-fixture", values=ordered)
+
+
 def resolved_registration(section_id="A"):
     return RegistrationAssessment(
         section_id=section_id,
@@ -130,11 +142,15 @@ class FallPruningReadinessTests(unittest.TestCase):
             "temporal_weight::2026F",
             {item.dimension for item in result.blocker_families},
         )
-        # The objective-definition problem does not hide the latent section-local evidence
-        # problem; both are useful for the eventual elicitation queue.
+        # The objective-definition problem does not hide latent section-local or timetable
+        # evidence problems; both remain visible for the repair queue.
         self.assertIn(
             "professor_rating_to_utility",
             {item.dimension for item in result.section_local_blockers},
+        )
+        self.assertIn(
+            "long_fixed_run_shape",
+            {item.dimension for item in result.timetable_profile_blockers},
         )
 
     def test_positive_fall_weight_with_default_missing_course_evidence_blocks_bound(self):
@@ -177,6 +193,7 @@ class FallPruningReadinessTests(unittest.TestCase):
         self.assertTrue(result.present_numeric_bound_available)
         # Diagnostics are still retained; zero weight does not pretend the evidence exists.
         self.assertTrue(result.section_local_blockers)
+        self.assertTrue(result.timetable_profile_blockers)
 
     def test_exact_bounded_inputs_can_make_present_bound_ready(self):
         item = section()
@@ -185,10 +202,7 @@ class FallPruningReadinessTests(unittest.TestCase):
         )
         result = audit_fall_pruning_readiness(
             universe(item),
-            PreferenceProfile(
-                "bounded-profile",
-                values=(exact_value("example_timetable_dimension", -2.0),),
-            ),
+            complete_timetable_profile(),
             ratings,
             fall_weight=1.0,
             registration_assessments={"A": resolved_registration()},
@@ -233,7 +247,7 @@ class FallPruningReadinessTests(unittest.TestCase):
         item = section()
         result = audit_fall_pruning_readiness(
             universe(item),
-            PreferenceProfile("empty"),
+            complete_timetable_profile(),
             ProfessorRatingBook(()),
             fall_weight=1.0,
             registration_assessments={"A": resolved_registration()},
@@ -272,16 +286,16 @@ class FallPruningReadinessTests(unittest.TestCase):
                 global_course_utility_bounds={"workload": heuristic},
             )
 
-    def test_heuristic_timetable_scalar_remains_proof_blocker(self):
+    def test_heuristic_activatable_timetable_scalar_remains_proof_blocker(self):
         item = section()
         heuristic = PreferenceValue(
-            "heuristic_dimension",
+            "friday_event_window_free",
             PreferenceEstimate.heuristic(-2.0, lower=-3.0, upper=-1.0),
             provenance(),
         )
         result = audit_fall_pruning_readiness(
             universe(item),
-            PreferenceProfile("heuristic", values=(heuristic,)),
+            complete_timetable_profile(overrides=(heuristic,)),
             ProfessorRatingBook(()),
             fall_weight=1.0,
         )
@@ -290,7 +304,47 @@ class FallPruningReadinessTests(unittest.TestCase):
             for blocker in result.blocker_families
             if blocker.kind is FallPruningBlockerKind.TIMETABLE_PROFILE
         ]
-        self.assertIn("heuristic_dimension", {item.dimension for item in profile})
+        self.assertIn("friday_event_window_free", {item.dimension for item in profile})
+
+    def test_unrelated_profile_placeholder_is_not_a_timetable_bound_blocker(self):
+        item = section()
+        placeholder = PreferenceValue(
+            "chapel_timing_advantage",
+            PreferenceEstimate.unmeasured(),
+            label="separate state-consequence placeholder",
+        )
+        result = audit_fall_pruning_readiness(
+            universe(item),
+            complete_timetable_profile(extras=(placeholder,)),
+            ProfessorRatingBook(()),
+            fall_weight=1.0,
+            registration_assessments={"A": resolved_registration()},
+            global_course_utility_bounds=fall2026_course_utility_bounds(),
+        )
+        self.assertNotIn(
+            "chapel_timing_advantage",
+            {item.dimension for item in result.timetable_profile_blockers},
+        )
+        self.assertEqual(result.status, FallPruningReadinessStatus.PRESENT_BOUND_READY)
+
+    def test_missing_activatable_dimension_is_caught_even_if_profile_omits_it(self):
+        item = section()
+        values = tuple(
+            exact_value(dimension, 0.0)
+            for dimension in sorted(timetable_preference_dimension_contract())
+            if dimension != "long_fixed_run_shape"
+        )
+        result = audit_fall_pruning_readiness(
+            universe(item),
+            PreferenceProfile("missing-long-run", values=values),
+            ProfessorRatingBook(()),
+            fall_weight=1.0,
+            registration_assessments={"A": resolved_registration()},
+            global_course_utility_bounds=fall2026_course_utility_bounds(),
+        )
+        blockers = {item.dimension for item in result.timetable_profile_blockers}
+        self.assertEqual(blockers, {"long_fixed_run_shape"})
+        self.assertEqual(result.status, FallPruningReadinessStatus.PRESENT_BOUND_BLOCKED)
 
 
 if __name__ == "__main__":
