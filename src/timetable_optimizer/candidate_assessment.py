@@ -226,11 +226,34 @@ def _time_conflicts(
 
 def _recognition_unknowns(
     assessments: tuple[RecognitionAssessment, ...],
+    degree_scenario: DegreeScenario | None,
 ) -> frozenset[str]:
+    """Return only unresolved recognition decisions relevant to the supplied scenario.
+
+    ``recognize_section`` deliberately records some broad decisions for auditability even
+    when the requirement is absent from a small scenario.  Those decisions must not make an
+    otherwise exact selected transition look unresolved.  Without a scenario we cannot
+    establish relevance, so all unresolved decisions remain visible.
+    """
+
+    relevant_ids = (
+        None
+        if degree_scenario is None
+        else {
+            requirement.requirement_id
+            for requirement in degree_scenario.requirements
+        }
+    )
     unresolved: set[str] = set()
     for assessment in assessments:
         for decision in assessment.decisions:
-            if decision.status is QualificationStatus.UNRESOLVED:
+            if (
+                decision.status is QualificationStatus.UNRESOLVED
+                and (
+                    relevant_ids is None
+                    or decision.requirement_id in relevant_ids
+                )
+            ):
                 unresolved.add(
                     f"recognition::{assessment.section_id}::{decision.requirement_id}"
                 )
@@ -454,7 +477,9 @@ def assess_candidate(
             )
         recognition.append(assessment)
 
-    future_unknowns: set[str] = set(_recognition_unknowns(tuple(recognition)))
+    future_unknowns: set[str] = set(
+        _recognition_unknowns(tuple(recognition), degree_scenario)
+    )
     if degree_scenario is not None and len(recognition) < len(sections):
         missing = set(section_ids) - {
             assessment.section_id for assessment in recognition
