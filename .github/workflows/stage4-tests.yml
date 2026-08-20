@@ -22,3 +22,5 @@ jobs:
         run: python -m unittest discover -s tests -p "test_*.py" -v
       - name: Audit historical catalogue ingestion
         run: python scripts/audit_historical_catalog.py past_terms.json
+      - name: Print visible timetable leaderboard
+        run: python scripts/stage4_visible_leaderboard.py
