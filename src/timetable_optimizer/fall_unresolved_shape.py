@@ -30,6 +30,17 @@ class FallUnresolvedShapeError(ValueError):
     """An unresolved-shape signature violates timetable geometry invariants."""
 
 
+def is_fall_unresolved_shape_dimension(dimension_id: str) -> bool:
+    """Whether ``dimension_id`` is one of the currently symbolic Fall shape terms."""
+
+    return (
+        dimension_id == "friday_event_window_free"
+        or dimension_id == "three_fixed_period_run"
+        or dimension_id.startswith("long_fixed_run_delta_")
+        or dimension_id.startswith("weekend_attached_presence_free_extra_total_")
+    )
+
+
 @dataclass(frozen=True)
 class FallUnresolvedShapeSignature:
     """Finite exact state for the current unmeasured timetable-shape dimensions."""
