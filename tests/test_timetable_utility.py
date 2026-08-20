@@ -58,6 +58,26 @@ class TimetablePreferenceQuantityTests(unittest.TestCase):
         )
         self.assertNotIn("dead_gap_quadratic_unit", quantities)
 
+    def test_one_and_two_period_runs_have_no_run_term_but_three_is_explicit(self):
+        one = timetable_preference_quantities(
+            extract_timetable_quality((section_from_raw(row("ONE-01-00", "화3")),))
+        )
+        two = timetable_preference_quantities(
+            extract_timetable_quality((section_from_raw(row("TWO-01-00", "화3,4")),))
+        )
+        three = timetable_preference_quantities(
+            extract_timetable_quality((section_from_raw(row("THREE-01-00", "화3,4,5")),))
+        )
+
+        for quantities in (one, two):
+            self.assertNotIn("three_fixed_period_run", quantities)
+            self.assertNotIn("four_fixed_period_run", quantities)
+            self.assertFalse(
+                any(key.startswith("long_fixed_run_delta_") for key in quantities)
+            )
+        self.assertEqual(three["three_fixed_period_run"], 1.0)
+        self.assertNotIn("four_fixed_period_run", three)
+
     def test_non_four_gap_and_long_run_preserve_known_anchor_plus_state_delta(self):
         sections = (
             section_from_raw(row("TEST1001-01-00", "화3,4,5,6,7")),
@@ -67,8 +87,7 @@ class TimetablePreferenceQuantityTests(unittest.TestCase):
         quantities = timetable_preference_quantities(facts)
 
         # A five-period run contains the confirmed four-period anchor plus one unresolved
-        # state-specific correction.  No assumption says the correction is linear or even
-        # monotone with run length.
+        # state-specific correction.  No assumption says the correction is linear.
         self.assertEqual(quantities["four_fixed_period_run"], 1.0)
         self.assertEqual(quantities["long_fixed_run_delta_5"], 1.0)
         # 수3,7 leaves periods 4,5,6 as a three-period dead gap: l^2 = 9.
@@ -121,6 +140,16 @@ class PartialTimetableUtilityTests(unittest.TestCase):
             "friday_event_window_free",
             assessment.unresolved_dimensions,
         )
+
+    def test_three_period_run_is_visible_but_not_given_fake_point_penalty(self):
+        sections = (section_from_raw(row("TEST1001-01-00", "화3,4,5")),)
+        assessment = evaluate_timetable_utility(
+            extract_timetable_quality(sections),
+            fall2026_preference_profile(),
+        )
+        self.assertIn("three_fixed_period_run", assessment.unresolved_dimensions)
+        contributions = {c.dimension_id: c for c in assessment.contributions}
+        self.assertNotIn("three_fixed_period_run", contributions)
 
     def test_long_run_keeps_four_period_anchor_numeric_but_delta_unresolved(self):
         sections = (
