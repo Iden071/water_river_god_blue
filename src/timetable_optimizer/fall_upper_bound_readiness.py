@@ -79,8 +79,10 @@ class FallUpperBoundReadiness:
     def conceptual_timetable_blocker_families(self) -> tuple[str, ...]:
         families: set[str] = set()
         for dimension in self.missing_timetable_dimensions:
-            if dimension.startswith("long_fixed_run_delta_"):
-                families.add("long_fixed_run_shape")
+            if dimension == "three_fixed_period_run" or dimension.startswith(
+                "long_fixed_run_delta_"
+            ):
+                families.add("fixed_run_shape")
             elif dimension.startswith("weekend_attached_presence_free_extra_total_"):
                 families.add("weekend_attached_run_shape")
             elif dimension == "friday_event_window_free":
