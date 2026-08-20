@@ -177,13 +177,23 @@ def fall2026_preference_profile() -> PreferenceProfile:
         ),
     )
 
-    # These are exact-state corrections, not a linear curve.  A 5+ period run first receives
-    # the confirmed four-period -8 anchor; the correction says how the exact longer state
-    # differs from that anchor.  Likewise the first weekend-attached no-campus weekday keeps
-    # its [12,14] value and each 2..5-day state has one total extra correction beyond it.
-    # Leaving these unresolved preserves nonlinear uncertainty without inventing a marginal
-    # coefficient.
-    nonlinear_state_unknowns = tuple(
+    # Run-length shape is deliberately non-linear and partially unresolved.  The user
+    # confirmed on 2026-08-20 that one- and two-period runs have no intrinsic run penalty,
+    # a three-period run may have a very slight negative effect but its magnitude is not
+    # numerically settled, four periods is the confirmed -8 anchor, and longer states must
+    # not be flattened to the old marathon constant.  The evaluator therefore emits no
+    # run term for lengths 1..2, this explicit unmeasured three-period state, and for 5+
+    # the four-period anchor plus an exact-length correction.
+    #
+    # Likewise the first weekend-attached no-campus weekday keeps its [12,14] value and
+    # each 2..5-day state has one total extra correction beyond it.  Leaving these states
+    # unresolved preserves nonlinear uncertainty without inventing a marginal coefficient.
+    nonlinear_state_unknowns = (
+        _unmeasured(
+            "three_fixed_period_run",
+            "Very slight intrinsic burden of a three-period continuous fixed-time run; magnitude unresolved",
+        ),
+    ) + tuple(
         _unmeasured(
             f"long_fixed_run_delta_{length}",
             f"Additional utility of a {length}-period continuous run relative to the confirmed four-period anchor",
