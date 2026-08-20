@@ -1,11 +1,13 @@
 # SPEC — Timetable Optimization
 
-**Status:** Provisional specification v0.3  
-**Stage:** Stage 3 implementation audit completed; Stage 4 repair starting
+**Status:** Provisional specification v0.8  
+**Stage:** Stage 4 repair in progress
 
 This document defines what the program is supposed to do.
 
 It is authoritative over implementation choices, old model descriptions, historical handoffs, and superseded rules. `RULES.md` remains an evidence/history archive rather than the governing specification.
+
+The user has manually validated this specification. Material outside `SPEC.md` — including `RULES.md`, prior research notes, historical handoffs, old implementations, and interpretations of institutional documents — remains provisional until the user manually double-checks it or directly confirms the specific fact and it is promoted into this specification. Such material may identify evidence to investigate, but it must not silently override `SPEC.md` or be described as user-confirmed.
 
 This specification is intentionally amendable. If later auditing reveals an omitted purpose, preference, constraint, or consequence, this document should be corrected explicitly before the model is changed to match it.
 
@@ -82,8 +84,9 @@ Examples include:
 - professor quality;
 - subject interest;
 - sequencing preferences;
-- registration obtainability/risk;
 - other subjective costs or benefits.
+
+Registration obtainability itself is **not** a personal preference weight. Eligibility and known registration gates are feasibility. Uncertain obtainability is a risk/contingency problem about whether a desired plan can be acquired and what fallback plans exist. It still belongs in the overall registration-planning problem, but it must not be converted into an arbitrary subjective utility coefficient merely because the optimizer needs a number.
 
 A preference remains a preference even if its numerical weight is extremely large. A very large preference must not be silently converted into a hard constraint merely because the optimizer almost never violates it.
 
@@ -136,6 +139,47 @@ Relevant concepts include:
 These concepts may require different representations.
 
 For example, an online recorded class may consume work without requiring campus presence or a fixed hour, and may behave differently again for registration-conflict purposes. The implementation must preserve such distinctions rather than collapsing every kind of occupied time into one variable.
+
+### 5.1 Current confirmed Fall 2026 timetable preference evidence
+
+The values below have been explicitly confirmed by the user or transparently derived from confirmed anchors. Positive values mean better; negative values mean worse.
+
+- one weekday starting at period 1 / 09:00: **-10**;
+- one weekday starting at period 2 / 10:00: **-5**;
+- one- and two-period continuous fixed-time runs: **no intrinsic run penalty**;
+- a three-period continuous fixed-time run: **may carry a very slight negative penalty, but its magnitude is unresolved**;
+- one four-period continuous fixed-time run: **-8**;
+- missing the lunch window: **-6**;
+- missing the dinner window: **-8**;
+- one genuinely fixed-time-free weekday: **[+6,+8]**;
+- the first weekday attached to the weekend-connected no-campus-presence run: **[+12,+14]**.
+
+For proof-safe pruning only, the unresolved three-period run contribution has a confirmed optimistic upper bound of **0**: the user described it as at most a slight burden, not a benefit. This does **not** assign its true value to zero.
+
+For runs longer than four periods, holding all separately modeled consequences fixed, the user confirmed that additional continuous duration cannot make the run intrinsically better than the four-period state; the latest clarification explicitly reconfirmed that moving from four to five periods is worse. Therefore every 5+ period state's additional run-utility contribution relative to the four-period anchor has a proof-safe upper bound of **0**. The actual penalties and the exact longer-run shape remain unresolved.
+
+The confirmed dead-gap curve is:
+
+    GapPenalty(l) = -10 * (l / 4)^2 = -0.625 * l^2
+
+where `l` is the dead-gap length in periods.
+
+The confirmed late-finish curve is:
+
+    LatePenalty(p) = -(p - 8)^a
+    a = ln(10) / ln(5) ≈ 1.4306765580733933
+
+with the original anchors period 9 = -1 and period 13 = -10. Therefore the derived period-9..15 values are approximately:
+
+- p9: **-1**;
+- p10: **-2.6957310321**;
+- p11: **-4.8151097956**;
+- p12: **-7.2669657973**;
+- p13: **-10**;
+- p14: **-12.9802408988**;
+- p15: **-16.1831088446**.
+
+These confirmations do **not** establish a complete shape for every timetable feature. In particular, the exact three-period run penalty, the exact penalty shape of continuous fixed-time runs longer than four periods, the Friday-event-window bonus, and the extra value of two or more weekend-attached campus-free weekdays remain unresolved. The optimizer must preserve those missing shapes rather than silently reviving an old linear or nonlinear formula as authority.
 
 ---
 
@@ -193,9 +237,27 @@ Such future timeline assumptions should therefore be explicit scenarios rather t
 
 The user's Chapel preference is **timing-specific**, not a generic intrinsic bonus attached to every Chapel whenever it is taken.
 
+The degree requires **at least two offline Chapel passes**. The user completed **one offline Chapel pass in Spring 2026**, so entering Fall 2026 at least one additional offline pass remains required. **Freshmen are required to take Chapel offline, so any qualifying Chapel taken by the user in Fall 2026 is definitively an offline pass.** Outside the freshman context, Chapel modality must still be established by the relevant evidence rather than assumed.
+
 The relevant reason for preferring Chapel now is that the degree requires offline Chapel passes, and completing those offline passes while the freshman/international-campus Chapel setup is appropriate is desirable. A Chapel taken now may therefore carry a real timing advantage over postponing that same obligation.
 
 The optimizer must not interpret this as "every Chapel is worth +10 whenever taken" or duplicate the same value once in the present and again when the obligation is eventually completed. The numerical magnitude should be re-established or sensitivity-tested when the model is rebuilt.
+
+### 7.2 Temporal weighting, future uncertainty, and recourse
+
+The user has explicitly clarified that **intrinsic academic-semester utility is time-neutral**. Holding all other consequences fixed, +10 utility in Fall and -10 utility in a later academic semester cancel rather than receiving different weights merely because one semester is closer in time.
+
+The earlier apparent preference for the current semester was not present bias. It came from an asymmetry of information and control:
+
+- Fall 2026 is known much more concretely than later catalogues and schedules;
+- future circumstances and preferences may change;
+- future decisions can be re-optimized when better information arrives.
+
+These facts must be represented as **epistemic uncertainty and future recourse**, not as an automatic discount on future intrinsic utility.
+
+Likewise, irreversible downstream effects such as GPA changes, admissions or declaration eligibility, scholarships, study-abroad options, and career-relevant consequences belong in the evolving state and downstream objective. They must not be hidden inside a generic "Fall matters more" weight.
+
+Therefore the optimizer should use equal intrinsic weights across academic semesters unless a later explicit user preference changes that conclusion, while preserving uncertainty, recourse, and irreversible state effects separately.
 
 ---
 
@@ -240,15 +302,44 @@ not:
 
     system invents value -> optimizer uses value
 
+### 9.1 Current proof-safe global course envelopes
+
+For Fall 2026 search, the user has confirmed a **neutral-zero convention** for the course-level preference dimensions below. Zero means no meaningful positive or negative effect on desirability.
+
+The user also supplied conservative ceilings on the true best-to-worst impact span of one course:
+
+- professor / teaching quality: **span ≤ 8**;
+- workload: **span ≤ 15**;
+- intrinsic subject interest: **span ≤ 3**;
+- pure cognitive difficulty: **span ≤ 5**.
+
+Workload and pure cognitive difficulty are one-sided burdens: a very light/easy course approaches 0, while additional workload or cognitive difficulty is negative. Therefore their proof-safe per-course utility envelopes are:
+
+- workload: **[-15, 0]**;
+- pure cognitive difficulty: **[-5, 0]**.
+
+Professor quality and subject interest may be either beneficial or harmful relative to neutral. The span ceilings do not establish where zero lies inside the true range. For proof-safe branch bounds, the model may therefore use the conservative outer envelopes:
+
+- professor / teaching quality: **[-8, +8]**;
+- intrinsic subject interest: **[-3, +3]**.
+
+These outer envelopes are deliberately looser than the user's true span ceilings. In particular, `[-8,+8]` does **not** assert that professor quality actually has a 16-point best-to-worst span, and `[-3,+3]` does **not** assert a 6-point interest span. They are admissible outer bounds derived from `min <= 0 <= max` together with `max - min <= span ceiling`, without assuming symmetry or inventing a midpoint.
+
+These values are intended first as **proof-safe fallback bounds**, not as final per-course ratings. Missing detailed ratings may remain visibly unknown for final ranking while still being bounded for exact search pruning. A course-specific user value, when supplied, should replace or tighten the relevant fallback evidence rather than being silently averaged with it.
+
 ---
 
 ## 10. Registration Obtainability and Competition
 
-Registration obtainability belongs conceptually inside the optimization problem rather than being merely decorative output.
+Registration obtainability belongs conceptually inside the overall registration-planning problem rather than being merely decorative output, but the user has clarified that obtainability is **not itself a personal preference dimension**.
 
-A high-quality timetable that is unlikely to be obtainable may be worse as a registration plan than a slightly lower-quality timetable with much higher obtainability.
+A high-quality desired timetable may be a poor registration plan if it is difficult to acquire and has weak fallbacks. The model should therefore distinguish:
 
-However, probability estimates must reflect the quality of the evidence.
+1. **Eligibility / hard registration gates** — known prohibitions or permissions that affect feasibility;
+2. **Obtainability uncertainty** — risk that an otherwise permitted section is not acquired;
+3. **Fallback structure** — what strong alternative plan remains if a desired section is unavailable.
+
+The optimizer must not ask for or invent an arbitrary utility weight for "registration difficulty." Probability estimates may be used only when supported by defensible evidence. Otherwise obtainability should be represented through ranges, scenarios, robust/fallback planning, or explicit unresolved risk.
 
 Third-party timetable apps such as **노크** can provide useful competition signals because many students place intended courses into their schedules. Such data is not ground truth. It may be biased by:
 
@@ -411,18 +502,21 @@ The program is not intended to:
 
 - Timetable optimization is one present-and-future problem.
 - Hard constraints determine feasibility; preferences remain numerical.
+- Registration obtainability is not a personal preference weight: eligibility/gates are feasibility, while uncertain obtainability is a risk/fallback-planning problem that remains inside the overall registration decision.
 - A hard constraint requires sufficiently established evidence.
 - Temporary scope choices are not automatically conceptual constraints.
 - Credit load, not raw course count, is the relevant load dimension.
 - Future degree obligations are finite and must be conserved.
 - Avoided required-course costs may merely be relocated.
-- Chapel has a timing-specific preference for completing required offline passes while the freshman/international-campus setup is appropriate; it is not a generic permanent per-Chapel bonus.
+- Chapel requires at least two offline passes; one was completed in Spring 2026. Freshman Chapel is offline by rule, so a Fall 2026 Chapel taken by the user supplies the remaining offline-pass minimum. Chapel also has a timing-specific preference for completing that obligation while the freshman/international-campus setup is appropriate; it is not a generic permanent per-Chapel bonus.
+- Intrinsic academic-semester utility is time-neutral. Future uncertainty and the ability to re-optimize later are epistemic/recourse effects, not a present-bias discount; irreversible GPA/admissions/etc. consequences belong in state transitions.
+- The currently confirmed Fall 2026 timetable anchors and derived gap/late curves are listed in §5.1. Continuous-run semantics are also settled at the current evidence boundary: 1–2 periods have no intrinsic run penalty; 3 periods may have a very slight negative contribution with proof upper bound 0; 4 periods = -8; every 5+ state has additional run utility relative to the four-period anchor bounded above by 0, while its exact penalty remains unresolved. Friday and multi-attached-weekday shapes remain unresolved rather than inheriting stale RULES values.
 - 국제 is effectively the dorm environment for local travel.
 - Mixed-campus semesters are possible and should be modeled through actual travel paths and feasibility.
 - Difficulty and workload belong in the model when defensibly represented.
 - Unknown difficulty/workload must not default to zero.
 - Professor and subject values are manually supplied numerical inputs.
-- Registration obtainability belongs conceptually inside the model, with uncertainty preserved.
+- For Fall 2026 proof search, neutral course impact is 0; conservative true best-to-worst spans are professor/teaching ≤8, workload ≤15, subject interest ≤3, and pure cognitive difficulty ≤5. The admissible fallback envelopes are professor [-8,+8], workload [-15,0], interest [-3,+3], and difficulty [-5,0], with the two symmetric-looking outer envelopes explicitly not interpreted as the true span.
 - Registration click order is static within one attempt and may be recomputed between attempts.
 - Future consequences may extend beyond credits to materially affected future opportunities.
 - Search must optimize the actual final objective.
@@ -432,7 +526,11 @@ The program is not intended to:
 
 - How multiple possible second-major futures should be aggregated into today's decision.
 - Exact travel-cost representation and residence-state model.
-- How noisy third-party competition data should be calibrated into obtainability probabilities.
+- How noisy third-party competition data should be calibrated into obtainability probabilities or robust scenarios.
+- The exact negative magnitude of the three-period continuous-run contribution.
+- The exact penalty shape of continuous fixed-time runs longer than four periods, subject to the settled nonpositive additional-utility upper bound in §5.1.
+- The Friday-event-window value.
+- The extra value shape of two or more weekend-attached campus-free weekdays.
 - Any additional preference dimension not yet identified or elicited.
 - Numerical values for preferences that have not yet been defensibly established.
 
