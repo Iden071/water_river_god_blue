@@ -26,13 +26,13 @@ class FallIntrinsicUpperBoundReadinessTests(unittest.TestCase):
             set(result.conceptual_timetable_blocker_families),
             {
                 "friday_event_value",
-                "long_fixed_run_shape",
+                "fixed_run_shape",
                 "weekend_attached_run_shape",
             },
         )
         self.assertFalse(result.missing_course_bound_dimensions)
 
-    def test_current_user_confirmed_one_sided_bounds_remove_long_run_blocker_family(self):
+    def test_current_user_confirmed_one_sided_bounds_remove_run_blocker_family(self):
         result = audit_fall_intrinsic_upper_bound_readiness(
             fall2026_preference_profile(),
             global_course_utility_bounds=fall2026_course_utility_bounds(),
@@ -43,19 +43,21 @@ class FallIntrinsicUpperBoundReadinessTests(unittest.TestCase):
             set(result.conceptual_timetable_blocker_families),
             {"friday_event_value", "weekend_attached_run_shape"},
         )
+        self.assertNotIn("three_fixed_period_run", result.missing_timetable_dimensions)
         self.assertFalse(
             any(
                 dimension.startswith("long_fixed_run_delta_")
                 for dimension in result.missing_timetable_dimensions
             )
         )
-        long_run_bounds = {
+        run_bounds = {
             bound.dimension_id: bound
             for bound in result.timetable_upper_bounds
-            if bound.dimension_id.startswith("long_fixed_run_delta_")
+            if bound.dimension_id == "three_fixed_period_run"
+            or bound.dimension_id.startswith("long_fixed_run_delta_")
         }
-        self.assertEqual(len(long_run_bounds), 11)
-        self.assertTrue(all(bound.upper == 0.0 for bound in long_run_bounds.values()))
+        self.assertEqual(len(run_bounds), 12)
+        self.assertTrue(all(bound.upper == 0.0 for bound in run_bounds.values()))
 
     def test_one_sided_upper_bounds_can_make_intrinsic_audit_ready_without_fake_points(self):
         profile = fall2026_preference_profile()
@@ -100,6 +102,7 @@ class FallIntrinsicUpperBoundReadinessTests(unittest.TestCase):
         )
         self.assertTrue(result.missing_timetable_dimensions)
         self.assertIn("friday_event_window_free", result.missing_timetable_dimensions)
+        self.assertIn("three_fixed_period_run", result.missing_timetable_dimensions)
 
     def test_explicit_upper_bound_requires_matching_activatable_dimension(self):
         bad = ProofUpperBound(
