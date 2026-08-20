@@ -6,15 +6,20 @@ from the resumable bitset DFS) and answers only:
 
 * which unresolved timetable-shape families actually activate in that batch;
 * which exact state dimensions activate;
+* how many distinct exact unresolved-shape signatures occur;
 * how far the archival diagnostic scenarios move those unresolved contributions.
 
 An enumeration prefix can establish *existence* of an activation but cannot establish its
 population frequency or whether the eventual optimum depends on it.  The result therefore
 carries an explicit ``representative=False`` flag and must never be used as a pruning proof.
+The signature count is an engineering diagnostic only: a small count can justify retaining
+symbolic alternatives, while a large count warns that another compact representation may be
+needed.  It says nothing about which signature is preferable.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from math import isfinite
 from types import MappingProxyType
@@ -22,6 +27,10 @@ from typing import Iterable, Mapping
 
 from .fall_candidate_sets import FallCandidateSet
 from .fall_shape_diagnostics import assess_archival_shape_sensitivity
+from .fall_unresolved_shape import (
+    FallUnresolvedShapeSignature,
+    unresolved_shape_signature,
+)
 from .timetable_quality import extract_timetable_quality
 from .timetable_utility import timetable_preference_quantities
 
@@ -39,6 +48,10 @@ class FallShapeBatchAudit:
     minimum_known_ordinary_credits: float
     family_activation_counts: Mapping[str, int]
     state_activation_counts: Mapping[str, int]
+    distinct_unresolved_shape_signatures: int
+    most_common_unresolved_shape_signatures: tuple[
+        tuple[FallUnresolvedShapeSignature, int], ...
+    ]
     maximum_archival_spread: float
     maximum_spread_section_ids: tuple[str, ...]
     uncovered_archival_state_dimensions: tuple[str, ...]
@@ -50,6 +63,17 @@ class FallShapeBatchAudit:
             raise FallShapeBatchAuditError("candidate counters cannot be negative")
         if not isfinite(self.minimum_known_ordinary_credits):
             raise FallShapeBatchAuditError("credit floor must be finite")
+        if self.distinct_unresolved_shape_signatures < 0:
+            raise FallShapeBatchAuditError("distinct signature count cannot be negative")
+        if self.distinct_unresolved_shape_signatures > self.candidates_evaluated:
+            raise FallShapeBatchAuditError(
+                "distinct signature count cannot exceed evaluated candidates"
+            )
+        if len(self.most_common_unresolved_shape_signatures) > 10:
+            raise FallShapeBatchAuditError("diagnostic retains at most ten common signatures")
+        for _, count in self.most_common_unresolved_shape_signatures:
+            if count <= 0:
+                raise FallShapeBatchAuditError("common signature counts must be positive")
         if self.representative or self.proof_evidence:
             raise FallShapeBatchAuditError(
                 "bounded DFS batch diagnostics cannot claim representativeness or proof status"
@@ -92,6 +116,7 @@ def audit_candidate_shape_batch(
         "weekend_attached_run_shape": 0,
     }
     state_counts: dict[str, int] = {}
+    signature_counts: Counter[FallUnresolvedShapeSignature] = Counter()
     max_spread = 0.0
     max_ids: tuple[str, ...] = ()
     uncovered: set[str] = set()
@@ -107,6 +132,8 @@ def audit_candidate_shape_batch(
 
         facts = extract_timetable_quality(candidate.sections)
         quantities = timetable_preference_quantities(facts)
+        signature_counts[unresolved_shape_signature(facts)] += 1
+
         active_families: set[str] = set()
         for dimension, quantity in quantities.items():
             family = _family_for_dimension(dimension)
@@ -133,6 +160,8 @@ def audit_candidate_shape_batch(
         minimum_known_ordinary_credits=minimum_known_ordinary_credits,
         family_activation_counts=MappingProxyType(dict(sorted(family_counts.items()))),
         state_activation_counts=MappingProxyType(dict(sorted(state_counts.items()))),
+        distinct_unresolved_shape_signatures=len(signature_counts),
+        most_common_unresolved_shape_signatures=tuple(signature_counts.most_common(10)),
         maximum_archival_spread=max_spread,
         maximum_spread_section_ids=max_ids,
         uncovered_archival_state_dimensions=tuple(sorted(uncovered)),
