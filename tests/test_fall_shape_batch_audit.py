@@ -66,6 +66,32 @@ class FallShapeBatchAuditTests(unittest.TestCase):
         self.assertIn("long_fixed_run_delta_5", result.state_activation_counts)
         self.assertGreater(result.maximum_archival_spread, 0.0)
         self.assertFalse(result.uncovered_archival_state_dimensions)
+        self.assertGreater(result.distinct_unresolved_shape_signatures, 0)
+        self.assertLessEqual(
+            result.distinct_unresolved_shape_signatures,
+            result.candidates_evaluated,
+        )
+        self.assertTrue(result.most_common_unresolved_shape_signatures)
+
+    def test_identical_unresolved_geometry_collapses_to_one_signature(self):
+        items = (
+            candidate("A1001-01-00", "화3,4,5"),
+            candidate("B1001-01-00", "화3,4,5"),
+        )
+        result = audit_candidate_shape_batch(items)
+        self.assertEqual(result.candidates_evaluated, 2)
+        self.assertEqual(result.distinct_unresolved_shape_signatures, 1)
+        signature, count = result.most_common_unresolved_shape_signatures[0]
+        self.assertEqual(count, 2)
+        self.assertEqual(signature.three_fixed_period_run_count, 1)
+
+    def test_different_unresolved_geometry_produces_distinct_signatures(self):
+        items = (
+            candidate("THREE1001-01-00", "화3,4,5"),
+            candidate("FIVE1001-01-00", "화3,4,5,6,7"),
+        )
+        result = audit_candidate_shape_batch(items)
+        self.assertEqual(result.distinct_unresolved_shape_signatures, 2)
 
     def test_credit_floor_is_diagnostic_filter_not_candidate_mutation(self):
         low = candidate("LOW1001-01-00", "화3", credits=3.0)
@@ -77,6 +103,7 @@ class FallShapeBatchAuditTests(unittest.TestCase):
         self.assertEqual(result.candidates_below_credit_floor, 1)
         self.assertEqual(result.candidates_evaluated, 1)
         self.assertEqual(result.minimum_known_ordinary_credits, 12.0)
+        self.assertEqual(result.distinct_unresolved_shape_signatures, 1)
 
     def test_nonparsed_schedule_is_visible_and_skipped(self):
         unresolved = candidate("UNK1001-01-00", "")
@@ -84,6 +111,8 @@ class FallShapeBatchAuditTests(unittest.TestCase):
         self.assertEqual(result.candidates_seen, 1)
         self.assertEqual(result.candidates_skipped_unresolved_schedule, 1)
         self.assertEqual(result.candidates_evaluated, 0)
+        self.assertEqual(result.distinct_unresolved_shape_signatures, 0)
+        self.assertFalse(result.most_common_unresolved_shape_signatures)
 
     def test_invalid_credit_floor_is_rejected(self):
         with self.assertRaises(FallShapeBatchAuditError):
