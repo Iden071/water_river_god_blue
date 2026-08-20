@@ -17,6 +17,7 @@ from timetable_optimizer.course_preferences import (  # noqa: E402
     SectionCoursePreferenceEvidence,
 )
 from timetable_optimizer.preferences import (  # noqa: E402
+    EstimateStatus,
     PreferenceEstimate,
     PreferenceProvenance,
     PreferenceSourceKind,
@@ -28,9 +29,9 @@ from timetable_optimizer.present_utility import (  # noqa: E402
 )
 from timetable_optimizer.timetable_utility import (  # noqa: E402
     PartialUtilityAssessment,
+    UnresolvedUtilityDimension,
     UtilityContribution,
 )
-from timetable_optimizer.preferences import EstimateStatus  # noqa: E402
 
 
 def provenance(source_id):
@@ -145,6 +146,76 @@ class PresentUtilityTests(unittest.TestCase):
                 base,
                 resolved_dimensions={"made_up_bonus": exact("bonus", 100.0)},
             )
+
+    def test_unresolved_timetable_quantity_is_preserved_not_collapsed_to_name(self):
+        timetable = PartialUtilityAssessment(
+            contributions=(),
+            unresolved=(
+                UnresolvedUtilityDimension(
+                    dimension_id="three_fixed_period_run",
+                    quantity=4.0,
+                    reason="magnitude not elicited",
+                    label="Three-period continuous run",
+                ),
+            ),
+            active_relations=(),
+            measured_lower=0.0,
+            measured_upper=0.0,
+            heuristic_point_delta=0.0,
+        )
+        assessment = assess_present_candidate_utility(
+            candidate(
+                timetable=timetable,
+                unknowns=("timetable::three_fixed_period_run",),
+            )
+        )
+
+        self.assertEqual(
+            assessment.unresolved_dimensions,
+            frozenset({"timetable::three_fixed_period_run"}),
+        )
+        self.assertEqual(len(assessment.unresolved_timetable_terms), 1)
+        term = assessment.unresolved_timetable_terms[0]
+        self.assertEqual(term.dimension_id, "timetable::three_fixed_period_run")
+        self.assertEqual(term.quantity, 4.0)
+
+    def test_resolving_timetable_scalar_multiplies_preserved_quantity(self):
+        timetable = PartialUtilityAssessment(
+            contributions=(),
+            unresolved=(
+                UnresolvedUtilityDimension(
+                    dimension_id="three_fixed_period_run",
+                    quantity=4.0,
+                    reason="magnitude not elicited",
+                ),
+            ),
+            active_relations=(),
+            measured_lower=0.0,
+            measured_upper=0.0,
+            heuristic_point_delta=0.0,
+        )
+        base = candidate(
+            timetable=timetable,
+            unknowns=("timetable::three_fixed_period_run",),
+        )
+        resolved = assess_present_candidate_utility(
+            base,
+            resolved_dimensions={
+                "timetable::three_fixed_period_run": exact(
+                    "three_fixed_period_run", -0.5
+                )
+            },
+        )
+
+        self.assertEqual(resolved.complete_bounds, (-2.0, -2.0))
+        self.assertFalse(resolved.unresolved_timetable_terms)
+        contribution = next(
+            item
+            for item in resolved.contributions
+            if item.dimension_id == "timetable::three_fixed_period_run"
+        )
+        self.assertEqual(contribution.quantity, 4.0)
+        self.assertEqual(contribution.point, -2.0)
 
     def test_hard_feasibility_unknown_blocks_whole_term_bounds_even_when_utility_is_exact(self):
         issue = CandidateConstraintIssue(
