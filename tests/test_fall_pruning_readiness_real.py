@@ -87,7 +87,7 @@ class RealFallPruningReadinessTests(unittest.TestCase):
         dimensions = {
             item.dimension for item in self.readiness.timetable_profile_blockers
         }
-        expected = {"friday_event_window_free"}
+        expected = {"friday_event_window_free", "three_fixed_period_run"}
         expected.update(f"long_fixed_run_delta_{length}" for length in range(5, 16))
         expected.update(
             f"weekend_attached_presence_free_extra_total_{count}"
@@ -95,9 +95,9 @@ class RealFallPruningReadinessTests(unittest.TestCase):
         )
         self.assertEqual(dimensions, expected)
         # Raw state count is intentionally larger than conceptual blocker count: the model
-        # preserves nonlinear uncertainty instead of pretending one scalar controls every
-        # longer run or every additional weekend-attached weekday.
-        self.assertEqual(len(dimensions), 16)
+        # preserves the three-period state plus nonlinear longer-run/weekend uncertainty
+        # instead of pretending one scalar controls each family.
+        self.assertEqual(len(dimensions), 17)
 
     def test_real_readiness_audit_counts_are_visible(self):
         section_counts = {
@@ -109,8 +109,11 @@ class RealFallPruningReadinessTests(unittest.TestCase):
         )
         conceptual = {
             "friday_event": [d for d in timetable if d == "friday_event_window_free"],
-            "long_fixed_run_shape": [
-                d for d in timetable if d.startswith("long_fixed_run_delta_")
+            "fixed_run_shape": [
+                d
+                for d in timetable
+                if d == "three_fixed_period_run"
+                or d.startswith("long_fixed_run_delta_")
             ],
             "weekend_attached_run_shape": [
                 d
