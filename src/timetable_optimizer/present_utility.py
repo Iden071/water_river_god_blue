@@ -8,6 +8,13 @@ turning missing registration, travel, professor, workload, or difficulty evidenc
 This module deliberately does **not** decide hard feasibility or degree recognition.  Those
 remain properties of the candidate/transition.  A whole-plan numerical bound is available
 only when both preference evidence and hard feasibility are resolved.
+
+Unresolved timetable utility is kept in two forms on purpose: ``unresolved_dimensions`` keeps
+the broad compatibility/status view used by the whole-plan machinery, while
+``unresolved_timetable_terms`` preserves the exact active quantity for each unmeasured
+schedule-geometry term.  The latter prevents a later symbolic/sensitivity layer from losing
+information by collapsing, for example, five three-period runs and one three-period run to the
+same bare dimension name.
 """
 
 from __future__ import annotations
@@ -17,7 +24,10 @@ from typing import Mapping
 
 from .candidate_assessment import CandidateAssessment
 from .preferences import EstimateStatus, PreferenceValue
-from .timetable_utility import UtilityContribution
+from .timetable_utility import (
+    UnresolvedUtilityDimension,
+    UtilityContribution,
+)
 
 
 class PresentUtilityError(ValueError):
@@ -35,6 +45,7 @@ class PresentTermUtilityAssessment:
     measured_upper: float
     heuristic_point_delta: float
     unresolved_dimensions: frozenset[str]
+    unresolved_timetable_terms: tuple[UnresolvedUtilityDimension, ...]
     known_infeasible: bool
     hard_feasibility_resolved: bool
 
@@ -67,19 +78,23 @@ def _preference_contribution(
     value: PreferenceValue,
     *,
     dimension_id: str,
+    quantity: float = 1.0,
 ) -> UtilityContribution | None:
+    """Convert one scalar preference value while preserving its active quantity."""
+
     estimate = value.estimate
     if estimate.status is EstimateStatus.UNMEASURED:
         return None
     if estimate.status is EstimateStatus.EXACT:
         assert estimate.point is not None
+        point = estimate.point * quantity
         return UtilityContribution(
             dimension_id=dimension_id,
-            quantity=1.0,
+            quantity=quantity,
             status=estimate.status,
-            lower=estimate.point,
-            upper=estimate.point,
-            point=estimate.point,
+            lower=point,
+            upper=point,
+            point=point,
             provenance=value.provenance,
             label=value.label,
         )
@@ -87,10 +102,10 @@ def _preference_contribution(
         assert estimate.lower is not None and estimate.upper is not None
         return UtilityContribution(
             dimension_id=dimension_id,
-            quantity=1.0,
+            quantity=quantity,
             status=estimate.status,
-            lower=estimate.lower,
-            upper=estimate.upper,
+            lower=estimate.lower * quantity,
+            upper=estimate.upper * quantity,
             provenance=value.provenance,
             label=value.label,
         )
@@ -98,11 +113,11 @@ def _preference_contribution(
         assert estimate.point is not None
         return UtilityContribution(
             dimension_id=dimension_id,
-            quantity=1.0,
+            quantity=quantity,
             status=estimate.status,
-            lower=estimate.lower,
-            upper=estimate.upper,
-            point=estimate.point,
+            lower=(estimate.lower * quantity if estimate.lower is not None else None),
+            upper=(estimate.upper * quantity if estimate.upper is not None else None),
+            point=estimate.point * quantity,
             provenance=value.provenance,
             label=value.label,
         )
@@ -123,6 +138,11 @@ def assess_present_candidate_utility(
     dimension already reported unresolved by ``CandidateAssessment``; callers cannot inject
     unrelated bonuses.  Timetable heuristic status cannot be erased by an override—the
     underlying timetable preference evidence itself must be upgraded.
+
+    For an unresolved timetable scalar, a later resolution is interpreted as the per-unit
+    preference value for the already-observed quantity.  This matches the ordinary timetable
+    evaluator and avoids the old information-loss bug where resolving a dimension always
+    contributed exactly one unit regardless of how many times it was active.
     """
 
     if not term_id.strip():
@@ -130,6 +150,7 @@ def assess_present_candidate_utility(
 
     contributions: list[UtilityContribution] = []
     unresolved = set(candidate.present_preference_unknowns)
+    unresolved_timetable_terms: dict[str, UnresolvedUtilityDimension] = {}
     measured_lower = 0.0
     measured_upper = 0.0
     heuristic = 0.0
@@ -141,6 +162,14 @@ def assess_present_candidate_utility(
         measured_lower += candidate.timetable_utility.measured_lower
         measured_upper += candidate.timetable_utility.measured_upper
         heuristic += candidate.timetable_utility.heuristic_point_delta
+        for item in candidate.timetable_utility.unresolved:
+            present_id = f"timetable::{item.dimension_id}"
+            unresolved_timetable_terms[present_id] = UnresolvedUtilityDimension(
+                dimension_id=present_id,
+                quantity=item.quantity,
+                reason=item.reason,
+                label=item.label,
+            )
 
     # Stage 4C stores course preference values without scoring them.  Stage 4E may carry
     # numerical values onto the common utility scale when the supplied PreferenceValue says
@@ -180,11 +209,19 @@ def assess_present_candidate_utility(
             raise PresentUtilityError(
                 f"present utility resolution {dimension_id!r} does not correspond to an unresolved candidate dimension"
             )
-        contribution = _preference_contribution(value, dimension_id=dimension_id)
+
+        timetable_term = unresolved_timetable_terms.get(dimension_id)
+        quantity = timetable_term.quantity if timetable_term is not None else 1.0
+        contribution = _preference_contribution(
+            value,
+            dimension_id=dimension_id,
+            quantity=quantity,
+        )
         if contribution is None:
             continue
         contributions.append(contribution)
         unresolved.remove(dimension_id)
+        unresolved_timetable_terms.pop(dimension_id, None)
         if contribution.status in {EstimateStatus.EXACT, EstimateStatus.BOUNDED}:
             assert contribution.lower is not None and contribution.upper is not None
             measured_lower += contribution.lower
@@ -201,6 +238,10 @@ def assess_present_candidate_utility(
         measured_upper=measured_upper,
         heuristic_point_delta=heuristic,
         unresolved_dimensions=frozenset(unresolved),
+        unresolved_timetable_terms=tuple(
+            unresolved_timetable_terms[key]
+            for key in sorted(unresolved_timetable_terms)
+        ),
         known_infeasible=candidate.known_infeasible,
         hard_feasibility_resolved=candidate.hard_feasibility_resolved,
     )
