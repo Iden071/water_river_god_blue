@@ -1,6 +1,6 @@
 # SPEC — Timetable Optimization
 
-**Status:** Provisional specification v0.7  
+**Status:** Provisional specification v0.8  
 **Stage:** Stage 4 repair in progress
 
 This document defines what the program is supposed to do.
@@ -146,11 +146,17 @@ The values below have been explicitly confirmed by the user or transparently der
 
 - one weekday starting at period 1 / 09:00: **-10**;
 - one weekday starting at period 2 / 10:00: **-5**;
+- one- and two-period continuous fixed-time runs: **no intrinsic run penalty**;
+- a three-period continuous fixed-time run: **may carry a very slight negative penalty, but its magnitude is unresolved**;
 - one four-period continuous fixed-time run: **-8**;
 - missing the lunch window: **-6**;
 - missing the dinner window: **-8**;
 - one genuinely fixed-time-free weekday: **[+6,+8]**;
 - the first weekday attached to the weekend-connected no-campus-presence run: **[+12,+14]**.
+
+For proof-safe pruning only, the unresolved three-period run contribution has a confirmed optimistic upper bound of **0**: the user described it as at most a slight burden, not a benefit. This does **not** assign its true value to zero.
+
+For runs longer than four periods, holding all separately modeled consequences fixed, the user confirmed that additional continuous duration cannot make the run intrinsically better than the four-period state; the latest clarification explicitly reconfirmed that moving from four to five periods is worse. Therefore every 5+ period state's additional run-utility contribution relative to the four-period anchor has a proof-safe upper bound of **0**. The actual penalties and the exact longer-run shape remain unresolved.
 
 The confirmed dead-gap curve is:
 
@@ -173,7 +179,7 @@ with the original anchors period 9 = -1 and period 13 = -10. Therefore the deriv
 - p14: **-12.9802408988**;
 - p15: **-16.1831088446**.
 
-These confirmations do **not** establish a complete shape for every timetable feature. In particular, the additional utility of continuous fixed-time runs longer than four periods, the Friday-event-window bonus, and the extra value of two or more weekend-attached campus-free weekdays remain unresolved. The optimizer must preserve those missing shapes rather than silently reviving an old linear or nonlinear formula as authority.
+These confirmations do **not** establish a complete shape for every timetable feature. In particular, the exact three-period run penalty, the exact penalty shape of continuous fixed-time runs longer than four periods, the Friday-event-window bonus, and the extra value of two or more weekend-attached campus-free weekdays remain unresolved. The optimizer must preserve those missing shapes rather than silently reviving an old linear or nonlinear formula as authority.
 
 ---
 
@@ -504,7 +510,7 @@ The program is not intended to:
 - Avoided required-course costs may merely be relocated.
 - Chapel requires at least two offline passes; one was completed in Spring 2026. Freshman Chapel is offline by rule, so a Fall 2026 Chapel taken by the user supplies the remaining offline-pass minimum. Chapel also has a timing-specific preference for completing that obligation while the freshman/international-campus setup is appropriate; it is not a generic permanent per-Chapel bonus.
 - Intrinsic academic-semester utility is time-neutral. Future uncertainty and the ability to re-optimize later are epistemic/recourse effects, not a present-bias discount; irreversible GPA/admissions/etc. consequences belong in state transitions.
-- The currently confirmed Fall 2026 timetable anchors and derived gap/late curves are listed in §5.1; the remaining Friday, >4-period-run, and multi-attached-weekday shapes stay unresolved rather than inheriting stale RULES values.
+- The currently confirmed Fall 2026 timetable anchors and derived gap/late curves are listed in §5.1. Continuous-run semantics are also settled at the current evidence boundary: 1–2 periods have no intrinsic run penalty; 3 periods may have a very slight negative contribution with proof upper bound 0; 4 periods = -8; every 5+ state has additional run utility relative to the four-period anchor bounded above by 0, while its exact penalty remains unresolved. Friday and multi-attached-weekday shapes remain unresolved rather than inheriting stale RULES values.
 - 국제 is effectively the dorm environment for local travel.
 - Mixed-campus semesters are possible and should be modeled through actual travel paths and feasibility.
 - Difficulty and workload belong in the model when defensibly represented.
@@ -521,7 +527,8 @@ The program is not intended to:
 - How multiple possible second-major futures should be aggregated into today's decision.
 - Exact travel-cost representation and residence-state model.
 - How noisy third-party competition data should be calibrated into obtainability probabilities or robust scenarios.
-- The additional utility shape of continuous fixed-time runs longer than four periods.
+- The exact negative magnitude of the three-period continuous-run contribution.
+- The exact penalty shape of continuous fixed-time runs longer than four periods, subject to the settled nonpositive additional-utility upper bound in §5.1.
 - The Friday-event-window value.
 - The extra value shape of two or more weekend-attached campus-free weekdays.
 - Any additional preference dimension not yet identified or elicited.
