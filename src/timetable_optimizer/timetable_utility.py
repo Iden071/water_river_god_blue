@@ -119,6 +119,7 @@ _TIMETABLE_PREFERENCE_DIMENSION_CONTRACT = frozenset(
         "start_period_2_day",
         "missing_lunch",
         "missing_dinner",
+        "three_fixed_period_run",
         "four_fixed_period_run",
         "dead_gap_quadratic_unit",
         "rest_fixed_free_weekday",
@@ -143,13 +144,15 @@ def timetable_preference_dimension_contract() -> frozenset[str]:
     them.  Conversely, dimensions produced dynamically by schedule geometry are
     included even when the current preference profile forgot to declare them.
 
-    Nonlinear shapes are represented as *state-specific corrections*, not one fake
-    marginal coefficient.  A run of 5+ fixed periods receives the known four-period
-    anchor plus an unresolved correction for its exact length.  Likewise, the first
-    weekend-attached no-campus weekday retains its known value, while a state with
-    2..5 attached weekdays receives one unresolved extra-total correction for that
-    exact state.  This is an exact reparameterization: no linearity or curvature is
-    assumed merely to make the optimizer easier to write.
+    Run length is represented without inheriting the legacy threshold as a preference
+    fact.  One- and two-period runs have no run-length term because the user explicitly
+    confirmed no intrinsic penalty for them.  A three-period run activates its own
+    unresolved state.  A four-period run uses the confirmed -8 anchor.  A run of 5+
+    fixed periods receives that anchor plus an unresolved correction for its exact
+    length.  Likewise, the first weekend-attached no-campus weekday retains its known
+    value, while a state with 2..5 attached weekdays receives one unresolved extra-total
+    correction for that exact state.  This is an exact reparameterization: no linearity
+    or curvature is assumed merely to make the optimizer easier to write.
 
     A branch-bound readiness audit must use this contract rather than iterating over
     every value stored in a broad preference profile; otherwise it can both invent
@@ -185,10 +188,15 @@ def timetable_preference_quantities(facts: TimetableQualityFacts) -> dict[str, f
             _add(quantities, "missing_dinner")
 
         for run_length in day.fixed_runs:
-            if run_length >= 4:
+            if run_length == 3:
+                # User confirmed a very slight intrinsic burden may exist here, but did
+                # not settle its magnitude.  Preserve it explicitly rather than silently
+                # inheriting the old model's zero-below-four marathon threshold.
+                _add(quantities, "three_fixed_period_run")
+            elif run_length >= 4:
                 # Preserve the confirmed four-period anchor inside every longer state,
                 # then leave the exact additional effect of length 5+ unresolved.  This
-                # does not assume that longer runs are linearly worse (or even monotone).
+                # does not assume a linear or fully known longer-run curve.
                 _add(quantities, "four_fixed_period_run")
                 if run_length > 4:
                     _add(quantities, f"long_fixed_run_delta_{run_length}")
