@@ -103,6 +103,20 @@ class RealFallResolvedCoreBitsetSmokeTests(unittest.TestCase):
         self.assertFalse(sensitivity.proof_evidence)
         self.assertGreater(sensitivity.candidates_evaluated, 0)
         self.assertFalse(sensitivity.uncovered_archival_state_dimensions)
+        self.assertGreater(sensitivity.distinct_unresolved_shape_signatures, 0)
+
+        common_signatures = []
+        for signature, count in sensitivity.most_common_unresolved_shape_signatures:
+            common_signatures.append(
+                {
+                    "count": count,
+                    "friday_free": signature.friday_event_window_free,
+                    "weekend_attached_days": signature.weekend_attached_presence_free_days,
+                    "three_runs": signature.three_fixed_period_run_count,
+                    "long_runs": signature.long_fixed_run_counts,
+                }
+            )
+
         print(
             "REAL_FALL_SHAPE_SENSITIVITY_PREFIX",
             {
@@ -114,6 +128,8 @@ class RealFallResolvedCoreBitsetSmokeTests(unittest.TestCase):
                 "skipped_unresolved_schedule": sensitivity.candidates_skipped_unresolved_schedule,
                 "family_activation_counts": dict(sensitivity.family_activation_counts),
                 "active_state_counts": dict(sensitivity.state_activation_counts),
+                "distinct_unresolved_shape_signatures": sensitivity.distinct_unresolved_shape_signatures,
+                "most_common_unresolved_shape_signatures": common_signatures,
                 "maximum_archival_scenario_spread": round(
                     sensitivity.maximum_archival_spread, 3
                 ),
