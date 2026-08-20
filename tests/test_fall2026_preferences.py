@@ -75,6 +75,10 @@ class Fall2026PreferenceProfileTests(unittest.TestCase):
         )
 
     def test_nonlinear_shape_states_are_explicitly_unmeasured_not_collapsed(self):
+        self.assertEqual(
+            self.profile.value("three_fixed_period_run").estimate.status,
+            EstimateStatus.UNMEASURED,
+        )
         for length in range(5, 16):
             self.assertEqual(
                 self.profile.value(f"long_fixed_run_delta_{length}").estimate.status,
