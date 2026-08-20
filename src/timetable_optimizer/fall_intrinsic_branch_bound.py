@@ -210,6 +210,7 @@ def _other_geometry_positive_relaxation(
 
     * start-at-period-1 / start-at-period-2: at most five weekdays each;
     * lunch / dinner fully blocked: at most five weekdays each;
+    * exact three-period runs: at most four per 15-period day -> 20/week;
     * four-period anchor: at most three disjoint >=4 runs per 15-period day -> 15/week;
     * dead-gap quadratic quantity: max 13^2 per day (periods 1 and 15 occupied) -> 845/week;
     * each exact late-finish period: at most five weekdays.
@@ -220,6 +221,7 @@ def _other_geometry_positive_relaxation(
         "start_period_2_day": 5.0,
         "missing_lunch": 5.0,
         "missing_dinner": 5.0,
+        "three_fixed_period_run": 20.0,
         "four_fixed_period_run": 15.0,
         "dead_gap_quadratic_unit": 845.0,
     }
@@ -239,6 +241,7 @@ def _validate_geometry_contract_accounted_for() -> None:
         "start_period_2_day",
         "missing_lunch",
         "missing_dinner",
+        "three_fixed_period_run",
         "four_fixed_period_run",
         "dead_gap_quadratic_unit",
         *(f"late_finish_period_{period}" for period in range(9, 16)),
